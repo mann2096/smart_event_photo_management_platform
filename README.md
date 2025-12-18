@@ -1,0 +1,1 @@
+# smart_event_photo_management_platform
