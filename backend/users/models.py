@@ -30,7 +30,7 @@ class User(AbstractBaseUser,PermissionsMixin):
     is_staff=models.BooleanField(default=False)
     created_at=models.DateTimeField(auto_now_add=True)
     objects=UserManager()
-
+    is_active = models.BooleanField(default=False)
     USERNAME_FIELD="email"
     REQUIRED_FIELDS = []
 
@@ -62,4 +62,8 @@ class TaggedBy(models.Model):
     class Meta:
         unique_together = ("tagged_user", "photo")
 
-
+class EmailOTP(models.Model):
+    user=models.ForeignKey("users.User",on_delete=models.CASCADE)
+    otp=models.CharField(max_length=6)
+    created_at=models.DateTimeField(auto_now_add=True)
+    is_used=models.BooleanField(default=False)

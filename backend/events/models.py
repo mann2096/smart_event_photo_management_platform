@@ -12,5 +12,12 @@ class Event(models.Model):
     VISIBILITY_CHOICES=[("public","Public"),("private","Private"),]
     visibility=models.CharField(max_length=10,choices=VISIBILITY_CHOICES,default="private",)
 
+    class Meta:
+        permissions=[
+            ("create_event","Can create event"),
+            ("update_event","Can update event"),
+            ("assign_event_coordinator", "Can change event coordinator for any event"),
+        ]
+
     def __str__(self):
         return self.name

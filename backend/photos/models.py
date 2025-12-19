@@ -8,6 +8,12 @@ class Photo(models.Model):
     image=models.ImageField(upload_to="photos/originals/")
     exif_data=models.JSONField(null=True,blank=True)
     uploaded_at=models.DateTimeField(auto_now_add=True)
+    views=models.PositiveIntegerField(default=0)
+    class Meta:
+        permissions=[
+            ("upload_photo","Can upload photo"),
+            ("delete_any_photo","Can delete any photo"),
+        ]
 
 class PhotoVersion(models.Model):
     photo=models.ForeignKey("photos.Photo",on_delete=models.CASCADE,related_name="versions",)
@@ -35,3 +41,16 @@ class Comment(models.Model):
     parent=models.ForeignKey("self",null=True,blank=True,on_delete=models.CASCADE,related_name="replies",)
     text=models.TextField()
     created_at=models.DateTimeField(auto_now_add=True)
+
+class PhotoLike(models.Model):
+    user=models.ForeignKey("users.User",on_delete=models.CASCADE,related_name="liked_photos",)
+    photo=models.ForeignKey("photos.Photo",on_delete=models.CASCADE,related_name="likes",)
+
+    class Meta:
+        unique_together = ("user", "photo")
+
+class PhotoDownload(models.Model):
+    photo=models.ForeignKey("photos.Photo",on_delete=models.CASCADE,related_name="downloads",)
+    user=models.ForeignKey("users.User",on_delete=models.SET_NULL,null=True,blank=True,related_name="photo_downloads",)
+    resolution=models.CharField(max_length=50,blank=True)
+    downloaded_at=models.DateTimeField(auto_now_add=True)
