@@ -10,14 +10,6 @@ class Command(BaseCommand):
                 "update_event",
                 "assign_event_coordinator",
             ],
-            "Photographer":[
-                "upload_photo",
-            ],
-            "Event Coordinator":[
-                "create_event",
-                "update_event",
-            ],
-            "Member":[],
         }
 
         for role,perms in roles.items():

@@ -33,4 +33,4 @@ class VerifyOTPView(APIView):
         record.save()
         request.user.is_active=True
         request.user.save()
-        return Response({"status": "verified"})
+        return Response({"status":"verified"})

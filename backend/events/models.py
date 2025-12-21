@@ -14,7 +14,6 @@ class Event(models.Model):
 
     class Meta:
         permissions=[
-            ("create_event","Can create event"),
             ("update_event","Can update event"),
             ("assign_event_coordinator", "Can change event coordinator for any event"),
         ]

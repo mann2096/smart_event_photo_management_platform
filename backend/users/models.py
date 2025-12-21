@@ -38,7 +38,7 @@ class User(AbstractBaseUser,PermissionsMixin):
         return self.email
 
 class UserEvent(models.Model):
-    ROLE_CHOICES=[("admin","Admin"),("coordinator","Coordinator"),("photographer","Photographer"),("member","Member"),]
+    ROLE_CHOICES=[("coordinator","Coordinator"),("photographer","Photographer"),("member","Member"),]
 
     user=models.ForeignKey("users.User",models.CASCADE,related_name="event_roles",)
     event=models.ForeignKey("events.Event",on_delete=models.CASCADE,related_name="participants",)
