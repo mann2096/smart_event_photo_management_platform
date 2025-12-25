@@ -1,5 +1,6 @@
 from django.urls import path
 from .views import PhotoViewSet
+from .views import *
 
 photo_list = PhotoViewSet.as_view({
     "get":"list",
@@ -13,5 +14,14 @@ photo_detail = PhotoViewSet.as_view({
 
 urlpatterns = [
     path("",photo_list,name="photo-list"),
-    path("<uuid:pk>/",photo_detail,name="photo-detail"),
+    path("<uuid:photo_id>/",PhotoDetailAPI.as_view(),name="photo-detail"),
+    path("<uuid:photo_id>/like/",PhotoLikeToggleAPI.as_view()),
+    path("<uuid:photo_id>/favourite/",PhotoFavouriteToggleAPI.as_view()),
+    path("<uuid:photo_id>/download/",PhotoDownloadAPI.as_view()),
+    path("<uuid:photo_id>/comment/",AddCommentAPI.as_view()),
+    path("<uuid:photo_id>/comments/",PhotoCommentsAPI.as_view()),
+    path("<uuid:photo_id>/tag/",TagUserOnPhotoAPI.as_view()),
+    path("favourites/",MyFavouritesAPI.as_view()),
+    path("tagged/",MyTaggedPhotosAPI.as_view()),
+    path("bulk/",BulkPhotoUploadAPI.as_view()),
 ]

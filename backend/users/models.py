@@ -7,15 +7,22 @@ class UserManager(BaseUserManager):
         if not email:
             raise ValueError("Email is required")
         email=self.normalize_email(email)
+        if not extra_fields.get("user_name"):
+            extra_fields["user_name"]=email.split("@")[0]
+
         user=self.model(email=email,**extra_fields)
         user.set_password(password)
+        user.is_active=False
         user.save(using=self._db)
         return user
 
-    def create_superuser(self,email,password=None,**extra_fields):
-        extra_fields.setdefault("is_staff",True)
-        extra_fields.setdefault("is_superuser",True)
-        return self.create_user(email, password,**extra_fields)
+
+    def create_superuser(self, email, password=None, **extra_fields):
+        extra_fields.setdefault("is_staff", True)
+        extra_fields.setdefault("is_superuser", True)
+
+        return self.create_user(email, password, **extra_fields)
+
 
 class User(AbstractBaseUser,PermissionsMixin):
     id=models.UUIDField(primary_key=True,default=uuid.uuid4,editable=False)
@@ -30,19 +37,18 @@ class User(AbstractBaseUser,PermissionsMixin):
     is_staff=models.BooleanField(default=False)
     created_at=models.DateTimeField(auto_now_add=True)
     objects=UserManager()
-    is_active = models.BooleanField(default=False)
+    is_active=models.BooleanField(default=True)
     USERNAME_FIELD="email"
-    REQUIRED_FIELDS = []
+    REQUIRED_FIELDS=[]
 
     def __str__(self):
         return self.email
 
 class UserEvent(models.Model):
     ROLE_CHOICES=[("coordinator","Coordinator"),("photographer","Photographer"),("member","Member"),]
-
     user=models.ForeignKey("users.User",models.CASCADE,related_name="event_roles",)
     event=models.ForeignKey("events.Event",on_delete=models.CASCADE,related_name="participants",)
-    role=models.CharField(max_length=20, choices=ROLE_CHOICES)
+    role=models.CharField(max_length=20,choices=ROLE_CHOICES)
     class Meta:
         unique_together=("user","event")
 

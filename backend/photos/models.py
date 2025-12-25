@@ -9,11 +9,7 @@ class Photo(models.Model):
     exif_data=models.JSONField(null=True,blank=True)
     uploaded_at=models.DateTimeField(auto_now_add=True)
     views=models.PositiveIntegerField(default=0)
-    class Meta:
-        permissions=[
-            ("upload_photo","Can upload photo"),
-            ("delete_any_photo","Can delete any photo"),
-        ]
+    downloads=models.PositiveIntegerField(default=0)
 
 class PhotoVersion(models.Model):
     photo=models.ForeignKey("photos.Photo",on_delete=models.CASCADE,related_name="versions",)
@@ -23,7 +19,6 @@ class PhotoVersion(models.Model):
 
 class Tag(models.Model):
     name=models.CharField(max_length=100,unique=True)
-
     def __str__(self):
         return self.name
 
@@ -49,8 +44,3 @@ class PhotoLike(models.Model):
     class Meta:
         unique_together = ("user", "photo")
 
-class PhotoDownload(models.Model):
-    photo=models.ForeignKey("photos.Photo",on_delete=models.CASCADE,related_name="downloads",)
-    user=models.ForeignKey("users.User",on_delete=models.SET_NULL,null=True,blank=True,related_name="photo_downloads",)
-    resolution=models.CharField(max_length=50,blank=True)
-    downloaded_at=models.DateTimeField(auto_now_add=True)
