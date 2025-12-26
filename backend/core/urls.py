@@ -16,16 +16,16 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import include, path
-from rest_framework_simplejwt.views import (
-    TokenObtainPairView,
-    TokenRefreshView,
-)
+from rest_framework_simplejwt.views import (TokenObtainPairView,TokenRefreshView,)
+from keploy.server import Keploy
 
-urlpatterns = [
-    path('admin/', admin.site.urls),
+keploy_app=Keploy()
+urlpatterns=[
+    path('admin/',admin.site.urls),
     path("api/users/",include("users.urls")),
     path("api/events/",include("events.urls")),
     path("api/photos/",include("photos.urls")),
-    path("api/auth/login/", TokenObtainPairView.as_view()),
-    path("api/auth/refresh/", TokenRefreshView.as_view()),
+    path("api/auth/login/",TokenObtainPairView.as_view()),
+    path("api/auth/refresh/",TokenRefreshView.as_view()),
+    path("keploy/<str:testcase_id>/",keploy_app),
 ]

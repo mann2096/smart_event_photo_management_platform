@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Photo
+from .models import Photo, PhotoShareLink
 
 class PhotoSerializer(serializers.ModelSerializer):
     class Meta:
@@ -20,3 +20,12 @@ class PhotoSerializer(serializers.ModelSerializer):
             "exif_data",
             "views",
         ]
+
+class PhotoShareLinkSerializer(serializers.ModelSerializer):
+    share_url=serializers.SerializerMethodField()
+    class Meta:
+        model=PhotoShareLink
+        fields=["id","share_url","expires_at","allow_download"]
+    def get_share_url(self,obj):
+        request=self.context.get("request")
+        return request.build_absolute_uri(f"/api/photos/share/{obj.token}/")

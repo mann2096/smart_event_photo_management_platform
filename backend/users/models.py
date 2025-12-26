@@ -9,20 +9,15 @@ class UserManager(BaseUserManager):
         email=self.normalize_email(email)
         if not extra_fields.get("user_name"):
             extra_fields["user_name"]=email.split("@")[0]
-
         user=self.model(email=email,**extra_fields)
         user.set_password(password)
         user.is_active=False
         user.save(using=self._db)
         return user
-
-
     def create_superuser(self, email, password=None, **extra_fields):
-        extra_fields.setdefault("is_staff", True)
-        extra_fields.setdefault("is_superuser", True)
-
+        extra_fields.setdefault("is_staff",True)
+        extra_fields.setdefault("is_superuser",True)
         return self.create_user(email, password, **extra_fields)
-
 
 class User(AbstractBaseUser,PermissionsMixin):
     id=models.UUIDField(primary_key=True,default=uuid.uuid4,editable=False)
@@ -37,7 +32,7 @@ class User(AbstractBaseUser,PermissionsMixin):
     is_staff=models.BooleanField(default=False)
     created_at=models.DateTimeField(auto_now_add=True)
     objects=UserManager()
-    is_active=models.BooleanField(default=True)
+    is_active=models.BooleanField(default=False)
     USERNAME_FIELD="email"
     REQUIRED_FIELDS=[]
 
@@ -58,7 +53,7 @@ class Favourite(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        unique_together = ("user", "photo")
+        unique_together =("user","photo")
 
 class TaggedBy(models.Model):
     tagged_user=models.ForeignKey("users.User",on_delete=models.CASCADE,related_name="tagged_photos",)

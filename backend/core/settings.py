@@ -31,7 +31,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-
+    "keploy",
     "rest_framework",
     "corsheaders",
     "channels",
@@ -160,3 +160,24 @@ REST_FRAMEWORK = {
         "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 20,
 }
+
+FRONTEND_BASE_URL = os.getenv(
+    "FRONTEND_BASE_URL",
+    "http://localhost:3000"  
+)
+
+EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+
+EMAIL_HOST = "smtp.gmail.com"
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+
+EMAIL_HOST_USER = "atharvgarg2006@gmail.com"
+EMAIL_HOST_PASSWORD = "bhmrmjtfbrczjjzm"
+
+DEFAULT_FROM_EMAIL = "Smart Event Photos <your_email@gmail.com>"
+
+OMNIPORT_CLIENT_ID = os.getenv("OMNIPORT_CLIENT_ID")
+OMNIPORT_CLIENT_SECRET = os.getenv("OMNIPORT_CLIENT_SECRET")
+OMNIPORT_REDIRECT_URI = "http://127.0.0.1:8000/api/auth/omniport/callback/"
+

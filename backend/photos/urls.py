@@ -24,4 +24,10 @@ urlpatterns = [
     path("favourites/",MyFavouritesAPI.as_view()),
     path("tagged/",MyTaggedPhotosAPI.as_view()),
     path("bulk/",BulkPhotoUploadAPI.as_view()),
+    path("bulk-delete/",BulkPhotoDeleteAPI.as_view()),
+    path("bulk-retag/",BulkPhotoRetagAPI.as_view()),
+    path("dashboard/",PhotographerDashboardAPI.as_view()),
+    path("<uuid:photo_id>/download/",PhotoDownloadAPI.as_view()),
+    path("<uuid:photo_id>/share/",CreatePhotoShareLinkAPI.as_view()),
+    path("share/<str:token>/",PublicPhotoShareView.as_view()),
 ]

@@ -1,3 +1,4 @@
+from datetime import timezone
 import uuid
 from django.db import models
 
@@ -10,6 +11,7 @@ class Photo(models.Model):
     uploaded_at=models.DateTimeField(auto_now_add=True)
     views=models.PositiveIntegerField(default=0)
     downloads=models.PositiveIntegerField(default=0)
+    taken_at=models.DateTimeField(null=True, blank=True)
 
 class PhotoVersion(models.Model):
     photo=models.ForeignKey("photos.Photo",on_delete=models.CASCADE,related_name="versions",)
@@ -42,5 +44,14 @@ class PhotoLike(models.Model):
     photo=models.ForeignKey("photos.Photo",on_delete=models.CASCADE,related_name="likes",)
 
     class Meta:
-        unique_together = ("user", "photo")
+        unique_together = ("user","photo")
 
+class PhotoShareLink(models.Model):
+    id=models.UUIDField(primary_key=True,default=uuid.uuid4,editable=False)
+    photo=models.ForeignKey("photos.Photo",on_delete=models.CASCADE,related_name="share_links")
+    token=models.CharField(max_length=64,unique=True)
+    expires_at=models.DateTimeField(null=True, blank=True)
+    allow_download=models.BooleanField(default=True)
+    created_at=models.DateTimeField(auto_now_add=True)
+    def is_expired(self):
+        return self.expires_at and timezone.now()>self.expires_at
