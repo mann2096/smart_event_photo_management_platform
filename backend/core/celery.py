@@ -17,3 +17,4 @@ app.config_from_object(
 
 # Auto-discover tasks from all installed apps
 app.autodiscover_tasks()
+app.conf.timezone = "UTC"

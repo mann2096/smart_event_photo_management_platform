@@ -1,4 +1,4 @@
-from datetime import timezone
+from django.utils import timezone
 import secrets
 from notifications.email import send_notification_email
 from photos.permissions import CanDeletePhoto
@@ -37,12 +37,13 @@ class BulkPhotoDeleteAPI(APIView):
         with transaction.atomic():
             for photo in photos:
                 if not request.user.is_superuser:
-                    if not UserEvent.objects.filter(
-                        user=request.user,
-                        event=photo.event,
-                        role__in=["photographer","coordinator"]
-                    ).exists():
-                        raise PermissionDenied("Not allowed to delete one or more photos")
+                    if photo.uploaded_by!=request.user:
+                        if not UserEvent.objects.filter(
+                            user=request.user,
+                            event=photo.event,
+                            role__in=["photographer","coordinator"]
+                        ).exists():
+                            raise PermissionDenied("Not allowed to delete one or more photos")
             deleted_count=photos.count()
             photos.delete()
         return Response({"deleted": deleted_count},status=200)
@@ -191,8 +192,7 @@ class AddCommentAPI(APIView):
         except Photo.DoesNotExist:
             raise Http404("Photo not found")
         if not user_has_event_access(request.user, photo.event):
-            return Response({"detail":"Access denied"}, status=403)
-
+            return Response({"detail":"Access denied"},status=403)
         parent_id=request.data.get("parent_id")
         parent=None
         if parent_id:

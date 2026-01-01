@@ -24,7 +24,6 @@ class OmniportCallbackView(APIView):
             raise ValidationError("Omniport did not return email")
         user=User.objects.filter(email=email).first()
         created=False
-
         if user:
             if user.provider=="email":
                 user.provider="omniport"
@@ -34,7 +33,7 @@ class OmniportCallbackView(APIView):
                     update_fields=["provider","provider_user_id","is_active"]
                 )
         else:
-            user = User.objects.create(
+            user=User.objects.create(
                 email=email,
                 user_name=email.split("@")[0],
                 provider="omniport",
@@ -78,7 +77,7 @@ class RegisterView(APIView):
         otp=str(random.randint(100000,999999))
         EmailOTP.objects.create(user=user, otp=otp)
         send_otp_email(user.email,otp)
-        return Response({"detail":"OTP sent"}, status=201)
+        return Response({"detail":"OTP sent"},status=201)
 
 
 class MeView(APIView):

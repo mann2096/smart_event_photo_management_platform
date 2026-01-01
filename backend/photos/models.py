@@ -1,4 +1,4 @@
-from datetime import timezone
+from django.utils import timezone
 import uuid
 from django.db import models
 
@@ -18,6 +18,9 @@ class PhotoVersion(models.Model):
     image=models.ImageField(upload_to="photos/versions/")
     resolution=models.CharField(max_length=50)
     is_watermarked=models.BooleanField(default=False)
+
+    class Meta:
+        unique_together = ("photo", "resolution", "is_watermarked")
 
 class Tag(models.Model):
     name=models.CharField(max_length=100,unique=True)

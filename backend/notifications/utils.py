@@ -8,9 +8,12 @@ def notify_user(user_id, payload):
         user=User.objects.get(id=user_id)
     except User.DoesNotExist:
         return
-    notification=Notification.objects.create(
+    notification_type=payload.get("type")
+    if not notification_type:
+        raise ValueError("Notification payload must include 'type'")
+    Notification.objects.create(
         user=user,
-        type=payload.get("type", "generic"),
+        type=notification_type,
         payload=payload,
     )
     channel_layer=get_channel_layer()

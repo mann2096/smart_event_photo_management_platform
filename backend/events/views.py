@@ -36,7 +36,7 @@ class ChangeEventRoleAPI(APIView):
     permission_classes=[IsAuthenticated]
     def patch(self,request,event_id):
         event=get_object_or_404(Event,id=event_id)
-        user=request.use
+        user=request.user
         if not (
             user.is_superuser or
             UserEvent.objects.filter(
@@ -57,7 +57,7 @@ class CreateEventInviteAPI(APIView):
     permission_classes=[IsAuthenticated]
     def post(self,request,event_id):
         event=Event.objects.get(id=event_id)
-        user=request.use
+        user=request.user
         if not (
             user.is_superuser or
             UserEvent.objects.filter(
