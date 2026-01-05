@@ -3,8 +3,8 @@ from .models import Event
 
 class EventSerializer(serializers.ModelSerializer):
     class Meta:
-        model = Event
-        fields = [
+        model=Event
+        fields=[
             "id",
             "name",
             "description",
@@ -13,4 +13,4 @@ class EventSerializer(serializers.ModelSerializer):
             "visibility",
             "created_by",
         ]
-        read_only_fields = ["id", "created_by"]
+        read_only_fields=["id","created_by"]

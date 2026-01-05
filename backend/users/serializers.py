@@ -39,8 +39,9 @@ class UserSerializer(serializers.ModelSerializer):
             "department",
             "profile_photo",
             "created_at",
+            "is_superuser",
         ]
-        read_only_fields = ["created_at","id","email"]
+        read_only_fields = ["created_at","id","email","is_superuser"]
 
 class RegisterSerializer(serializers.Serializer):
     email=serializers.EmailField()

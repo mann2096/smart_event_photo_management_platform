@@ -3,7 +3,7 @@ from channels.layers import get_channel_layer
 from .models import Notification
 from users.models import User
 
-def notify_user(user_id, payload):
+def notify_user(user_id,payload):
     try:
         user=User.objects.get(id=user_id)
     except User.DoesNotExist:
@@ -11,7 +11,7 @@ def notify_user(user_id, payload):
     notification_type=payload.get("type")
     if not notification_type:
         raise ValueError("Notification payload must include 'type'")
-    Notification.objects.create(
+    notification=Notification.objects.create(
         user=user,
         type=notification_type,
         payload=payload,

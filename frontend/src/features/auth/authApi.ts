@@ -5,17 +5,14 @@ interface LoginRequest{
   email:string;
   password:string;
 }
-
 interface RegisterRequest{
   email:string;
   password:string;
 }
-
 interface VerifyOTPRequest{
   email:string;
   otp:string;
 }
-
 export const authApi=api.injectEndpoints({
   endpoints:(builder) => ({
     login:builder.mutation<AuthTokens,LoginRequest>({

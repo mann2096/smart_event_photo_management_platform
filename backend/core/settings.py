@@ -18,8 +18,8 @@ SECRET_KEY =os.getenv("SECRET_KEY")
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv("DEBUG")=="True"
+ALLOWED_HOSTS = ["localhost", "127.0.0.1"]
 
-ALLOWED_HOSTS = []
 
 
 # Application definition
@@ -36,7 +36,7 @@ INSTALLED_APPS = [
     "channels",
     "users",
     "events",
-    "photos",
+    "photos.apps.PhotosConfig",
     "notifications",
     "django_celery_results",
     'rest_framework.authtoken',
@@ -171,12 +171,13 @@ EMAIL_HOST = "smtp.gmail.com"
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 
-EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER ")
+EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER")
 EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD")
 
 DEFAULT_FROM_EMAIL = "Smart Event Photos <your_email@gmail.com>"
 
 OMNIPORT_CLIENT_ID = os.getenv("OMNIPORT_CLIENT_ID")
 OMNIPORT_CLIENT_SECRET = os.getenv("OMNIPORT_CLIENT_SECRET")
-OMNIPORT_REDIRECT_URI = "http://127.0.0.1:8000/api/auth/omniport/callback/"
-
+OMNIPORT_REDIRECT_URI = "http://127.0.0.1:8000/api/users/auth/omniport/callback/"
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "media"

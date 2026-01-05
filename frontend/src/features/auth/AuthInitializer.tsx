@@ -1,27 +1,29 @@
-import {useEffect} from "react";
-import {useGetMeQuery} from "../auth/authApi";
-import {useAppDispatch} from "../../app/hooks";
-import {setCredentials,logout} from "./authSlice";
+import { useEffect } from "react";
+import { useAppDispatch, useAppSelector } from "../../app/hooks";
+import { authApi } from "./authApi";
+import { setCredentials, logout } from "./authSlice";
 
-export default function AuthInitializer({children}:{children:React.ReactNode;}){
+export default function AuthInitializer({children,}:{children: React.ReactNode;}){
   const dispatch=useAppDispatch();
-  const{data,isSuccess,isError}=useGetMeQuery(undefined,{
-    skip:!localStorage.getItem("accessToken"),
-  });
+  const accessToken=useAppSelector(
+    (state) => state.auth.accessToken
+  );
   useEffect(() => {
-    if(isSuccess&&data) {
-      dispatch(
-        setCredentials({
-          user:data,
-          accessToken:localStorage.getItem("accessToken")!,
-          refreshToken:localStorage.getItem("refreshToken"),
-        })
-      );
-    }
-    if(isError) {
-      dispatch(logout());
-    }
-  },[isSuccess,isError,data,dispatch]);
-  
+    if (!accessToken) return;
+    dispatch(authApi.endpoints.getMe.initiate()).unwrap()
+      .then((user) => {
+        dispatch(
+          setCredentials({
+            user,
+            accessToken: accessToken!,
+            refreshToken: localStorage.getItem("refreshToken"),
+          })
+        );
+      })
+      .catch(() => {
+        dispatch(logout());
+      });
+  }, [dispatch,accessToken]);
+
   return <>{children}</>;
 }

@@ -7,6 +7,7 @@ export interface User{
   department:string;
   profile_photo:string | null;
   created_at:string;
+  is_superuser: boolean;
 }
 
 export interface AuthTokens{

@@ -1,4 +1,5 @@
 from django.utils import timezone
+from datetime import timedelta
 import secrets
 from notifications.email import send_notification_email
 from photos.permissions import CanDeletePhoto
@@ -12,7 +13,7 @@ from rest_framework.exceptions import PermissionDenied
 from events.permissions import user_has_event_access
 from notifications.utils import notify_user
 from .tasks import apply_watermark,auto_tag_photo,extract_exif_data,generate_thumbnail
-from .models import Photo,PhotoLike, PhotoShareLink, PhotoVersion
+from .models import Photo,PhotoLike, PhotoShareLink, PhotoVersion, PhotoView
 from .serializers import PhotoSerializer, PhotoShareLinkSerializer
 from users.models import User,UserEvent,TaggedBy
 from celery import chain
@@ -109,10 +110,16 @@ class BulkPhotoUploadAPI(APIView):
 
 
 class PhotoDetailAPI(APIView):
+    permission_classes=[IsAuthenticated]
     def get(self,request,photo_id):
-        Photo.objects.filter(id=photo_id).update(views=F("views")+1)
-        photo=Photo.objects.get(id=photo_id)
-        return Response({"image":photo.image.url})
+        photo=get_object_or_404(Photo,id=photo_id)
+        if request.user.is_authenticated:
+            view,created=PhotoView.objects.get_or_create(user=request.user,photo=photo)
+            if created:
+                Photo.objects.filter(id=photo.id).update(
+                    views=F("views")+1
+                )
+        return Response({"image": photo.image.url})
 
 class PhotoDownloadAPI(APIView):
     permission_classes=[IsAuthenticated]
@@ -152,9 +159,7 @@ class CreatePhotoShareLinkAPI(APIView):
         expires_in_hours=request.data.get("expires_in_hours")
         expires_at=None
         if expires_in_hours:
-            expires_at=timezone.now()+timezone.timedelta(
-                hours=int(expires_in_hours)
-            )
+            expires_at=timezone.now()+timedelta(hours=int(expires_in_hours))
         link=PhotoShareLink.objects.create(
             photo=photo,
             token=secrets.token_urlsafe(32),
@@ -336,16 +341,32 @@ class TagUserOnPhotoAPI(APIView):
 class MyTaggedPhotosAPI(APIView):
     permission_classes=[IsAuthenticated]
     def get(self,request):
-        taggings=(TaggedBy.objects.filter(tagged_user=request.user).select_related("photo"))
+        taggings=(TaggedBy.objects.filter(tagged_user=request.user).select_related("photo","photo__event","tagged_by"))
         data=[
             {
-                "id":tag.photo.id,
-                "image":tag.photo.image.url,
-                "tagged_at": tag.created_at,
+                "photo":{
+                    "id":tag.photo.id,
+                    "image":tag.photo.image.url,
+                    "uploaded_at":tag.photo.uploaded_at,
+                    "views":tag.photo.views,
+                    "exif_data":tag.photo.exif_data,
+                    "event":{
+                        "id":tag.photo.event.id,
+                        "name":tag.photo.event.name,
+                        "visibility":tag.photo.event.visibility,
+                    },
+                },
+                "tagged_at":tag.created_at,
+                "tagged_by":{
+                    "id":tag.tagged_by.id,
+                    "user_name":tag.tagged_by.user_name,
+                    "email":tag.tagged_by.email,
+                },
             }
             for tag in taggings
         ]
         return Response(data)
+
 
 
 class PhotoFavouriteToggleAPI(APIView):
@@ -404,44 +425,65 @@ class PhotoViewSet(ModelViewSet):
     serializer_class=PhotoSerializer
     permission_classes=[IsAuthenticated]
     def get_queryset(self):
-        user=self.request.user
-        if user.is_superuser:
-            queryset=Photo.objects.all()
-        else:
-            queryset=Photo.objects.filter(
-                models.Q(event__visibility="public")|
-                models.Q(event__participants__user=user)
+        user = self.request.user
+        private_only = self.request.query_params.get("private_only") == "true"
+
+        if private_only:
+            return Photo.objects.filter(
+                event__visibility="private",
+                event__participants__user=user
             ).distinct()
-        event_id=self.request.query_params.get("event")
-        photographer_id=self.request.query_params.get("photographer")
-        date=self.request.query_params.get("date")
-        timeline=self.request.query_params.get("timeline")
-        if timeline=="true":
-            queryset=queryset.order_by("taken_at","uploaded_at")
+        if user.is_superuser:
+            queryset = Photo.objects.all()
+        else:
+            queryset = Photo.objects.filter(
+                Q(event__visibility="public") |
+                Q(event__participants__user=user)
+            ).distinct()
+
+        event_id = self.request.query_params.get("event")
         if event_id:
-            queryset=queryset.filter(event_id=event_id)
-        event_name=self.request.query_params.get("event_name")
-        if event_name:
-            queryset=queryset.filter(event__name__icontains=event_name)
+            queryset = queryset.filter(event_id=event_id)
+            return queryset  
+
+        event_ids_param = self.request.query_params.get("event_ids")
+        if event_ids_param:
+            event_ids = [
+                eid.strip()
+                for eid in event_ids_param.split(",")
+                if eid.strip()
+            ]
+            queryset = queryset.filter(
+                event__id__in=event_ids,
+                event__visibility="public"
+            )
+            return queryset 
+
+        photographer_id = self.request.query_params.get("photographer")
         if photographer_id:
-            queryset=queryset.filter(uploaded_by_id=photographer_id)
-        if date:
-            queryset=queryset.filter(uploaded_at__date=date)
-        start_date=self.request.query_params.get("start_date")
-        end_date=self.request.query_params.get("end_date")
+            queryset = queryset.filter(uploaded_by_id=photographer_id)
+
+        start_date = self.request.query_params.get("start_date")
+        end_date = self.request.query_params.get("end_date")
         if start_date and end_date:
-            queryset=queryset.filter(
+            queryset = queryset.filter(
                 taken_at__date__range=[start_date, end_date]
             )
-        tags=self.request.query_params.getlist("tags")
-        if tags:
-            queryset=queryset.filter(tags__tag__name__in=tags).distinct()
-        return queryset
 
-    def get_permissions(self):
-        if self.action=="destroy":
-            return [IsAuthenticated(),CanDeletePhoto()]
-        return super().get_permissions()
+        tags = self.request.query_params.getlist("tags")
+        if tags:
+            queryset = queryset.filter(
+                tags__tag__name__in=tags
+            ).distinct()
+
+        timeline = self.request.query_params.get("timeline")
+        if timeline == "true":
+            queryset = queryset.order_by(
+                F("taken_at").asc(nulls_last=True),
+                F("uploaded_at").asc(nulls_last=True),
+            )
+
+        return queryset
 
     def perform_create(self,serializer):
         event=serializer.validated_data["event"]
@@ -453,7 +495,6 @@ class PhotoViewSet(ModelViewSet):
                 role__in=["photographer","coordinator"]
             ).exists():
                 raise PermissionDenied("Not a photographer for this event")
-        photo=serializer.save(uploaded_by=user)
         participants = UserEvent.objects.filter(
             event=event
         ).select_related("user")
@@ -467,42 +508,46 @@ class PhotoViewSet(ModelViewSet):
                         f"to the event '{event.name}'."
                     )
                 )
-        chain(
-            extract_exif_data.s(photo.id),
-            generate_thumbnail.s(),
-            apply_watermark.s(),
-            auto_tag_photo.s(),
-        ).delay()
+        photo=serializer.save(uploaded_by=user)
+        
 
 class PhotographerDashboardAPI(APIView):
     permission_classes=[IsAuthenticated]
     def get(self,request):
-        user=request.user
-        photos=Photo.objects.filter(uploaded_by=user)
-        total_uploads=photos.count()
-        total_views=photos.aggregate(total=Sum("views"))["total"] or 0
-        total_downloads=photos.aggregate(total=Sum("downloads"))["total"] or 0
-        total_likes=PhotoLike.objects.filter(
-            photo__uploaded_by=user
-        ).count()
-        events_data=[]
-        events=Event.objects.filter(photo__uploaded_by=user).distinct()
-        for event in events:
-            event_photos=photos.filter(event=event)
-            events_data.append({
-                "event_id": event.id,
-                "event_name": event.name,
-                "photo_count": event_photos.count(),
-                "views": event_photos.aggregate(v=Sum("views"))["v"] or 0,
-                "downloads": event_photos.aggregate(d=Sum("downloads"))["d"] or 0,
-                "likes": PhotoLike.objects.filter(
-                    photo__in=event_photos
-                ).count(),
+        try:
+            user=request.user
+            photos=Photo.objects.filter(uploaded_by=user).exclude(uploaded_by__isnull=True)
+            total_uploads=photos.count()
+            total_views=photos.aggregate(total=Sum("views"))["total"] or 0
+            total_downloads=photos.aggregate(total=Sum("downloads"))["total"] or 0
+            total_likes=PhotoLike.objects.filter(
+                photo__uploaded_by=user
+            ).count()
+            events_data=[]
+            events = Event.objects.filter(
+                photos__uploaded_by=user
+            ).distinct()
+
+
+            for event in events:
+                event_photos=photos.filter(event=event)
+                events_data.append({
+                    "event_id":event.id,
+                    "event_name":event.name,
+                    "photo_count":event_photos.count(),
+                    "views":event_photos.aggregate(v=Sum("views"))["v"] or 0,
+                    "downloads":event_photos.aggregate(d=Sum("downloads"))["d"] or 0,
+                    "likes":PhotoLike.objects.filter(
+                        photo__in=event_photos
+                    ).count(),
+                })
+            return Response({
+                "total_uploads":total_uploads,
+                "total_views":total_views,
+                "total_likes":total_likes,
+                "total_downloads":total_downloads,
+                "events":events_data,
             })
-        return Response({
-            "total_uploads":total_uploads,
-            "total_views":total_views,
-            "total_likes":total_likes,
-            "total_downloads":total_downloads,
-            "events":events_data,
-        })
+        except Exception as e:
+            print("DASHBOARD ERROR:", repr(e))
+            raise

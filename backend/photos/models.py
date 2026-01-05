@@ -58,3 +58,19 @@ class PhotoShareLink(models.Model):
     created_at=models.DateTimeField(auto_now_add=True)
     def is_expired(self):
         return self.expires_at and timezone.now()>self.expires_at
+    
+class PhotoView(models.Model):
+    user = models.ForeignKey(
+        "users.User",
+        on_delete=models.CASCADE,
+        related_name="photo_views"
+    )
+    photo = models.ForeignKey(
+        "photos.Photo",
+        on_delete=models.CASCADE,
+        related_name="view_records"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("user", "photo")

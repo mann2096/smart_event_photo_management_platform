@@ -1,4 +1,5 @@
 import random
+from django.conf import settings
 from django.forms import ValidationError
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -10,6 +11,8 @@ from .serializers import LoginSerializer,UserSerializer,RegisterSerializer
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.exceptions import ValidationError
+from django.shortcuts import redirect
+from urllib.parse import urlencode
 
 class OmniportCallbackView(APIView):
     permission_classes=[]
@@ -42,17 +45,17 @@ class OmniportCallbackView(APIView):
             )
             created=True
         refresh=RefreshToken.for_user(user)
-        return Response(
-            {
-                "access":str(refresh.access_token),
-                "refresh":str(refresh),
-                "new_user":created,
-            }
-        )
+        params=urlencode({
+            "access":str(refresh.access_token),
+            "refresh":str(refresh),
+            "new_user":str(created).lower(),
+        })
+        redirect_url=f"{settings.FRONTEND_BASE_URL}/auth/omniport/callback/?{params}"
+        return redirect(redirect_url)
 
 class RegisterView(APIView):
     permission_classes=[]
-    def post(self, request):
+    def post(self,request):
         email=request.data.get("email")
         existing_user=User.objects.filter(email=email).first()
         if existing_user:
