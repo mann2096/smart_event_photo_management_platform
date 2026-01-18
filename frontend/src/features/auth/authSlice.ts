@@ -5,7 +5,7 @@ import { api } from "../../services/api";
 import type { AppDispatch } from "../../app/store";
 
 interface SetCredentialsPayload {
-    user:User;
+    user:User|null;
     accessToken:string;
     refreshToken:string|null;
 }
@@ -34,16 +34,14 @@ const authSlice=createSlice({
         setUser(state,action:PayloadAction<User>) {
             state.user=action.payload;
         },
-        logout(state) {
-            state.user = null;
-            state.accessToken = null;
-            state.refreshToken = null;
-            state.isAuthenticated = false;
-
+        logout(state){
+            state.user=null;
+            state.accessToken=null;
+            state.refreshToken=null;
+            state.isAuthenticated=false;
             localStorage.removeItem("accessToken");
             localStorage.removeItem("refreshToken");
         },
-
         setTokens:(
             state,
             action:PayloadAction<{
@@ -56,7 +54,7 @@ const authSlice=createSlice({
             }
     },
 });
-export const logoutAndReset = () => (dispatch: AppDispatch) => {
+export const logoutAndReset = () => (dispatch:AppDispatch) => {
   dispatch(logout());
   dispatch(api.util.resetApiState());
 };

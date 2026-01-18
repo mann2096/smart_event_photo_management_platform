@@ -1,27 +1,21 @@
-import { useState } from "react";
 import Navbar from "./Navbar";
 import Sidebar from "./Sidebar";
 import { Outlet } from "react-router-dom";
-import type { PhotoFilters } from "../types/photoFilters";
 
 export default function AppLayout() {
-  const [filters, setFilters] = useState<PhotoFilters>({
-    startDate: undefined,
-    endDate: undefined,
-    tags: [],
-    eventName: "",
-    timeline: false,
-  });
-
+  
   return (
-    <div className="flex flex-row">
-      <Sidebar />
-      <div>
-        <Navbar
-          filters={filters}
-          setFilters={setFilters}
-        />
-        <Outlet context={{ filters }} />
+    <div className="flex h-screen overflow-hidden">
+      <aside className="w-64 shrink-0 border-r bg-white">
+        <Sidebar />
+      </aside>
+      <div className="flex flex-col flex-1 overflow-hidden">
+        <header className="shrink-0 border-b bg-white">
+          <Navbar />
+        </header>
+        <main className="flex-1 overflow-y-auto bg-gray-50">
+          <Outlet  />
+        </main>
       </div>
     </div>
   );

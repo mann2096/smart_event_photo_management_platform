@@ -15,13 +15,22 @@ export const photosApi=api.injectEndpoints({
         };
       },
       providesTags: (result) =>
-        result?.results?[...result.results.map((photo) => ({
-                type:"Photos" as const,
-                id:photo.id,
+        result?.results
+          ? [
+              { type: "Photos", id: "LIST" },
+              ...result.results.map((photo) => ({
+                type: "Photos" as const,
+                id: photo.id,
               })),
-              {type:"Photos",id:"LIST"},
+              ...Array.from(
+                new Set(result.results.map((p) => p.event.id))
+              ).map((eventId) => ({
+                type: "Photos" as const,
+                id: `EVENT_${eventId}`,
+              })),
             ]
-          :[{type:"Photos",id:"LIST"}],
+          : [{ type: "Photos", id: "LIST" }],
+
     }),
     getPhotoComments: builder.query<any[],string>({
       query: (photoId) => `/photos/${photoId}/comments/`,
@@ -34,8 +43,8 @@ export const photosApi=api.injectEndpoints({
       }),
       invalidatesTags:["Photos","Dashboard"],
     }),
-    addComment: builder.mutation<{ id: string; created_at: string },{ photoId: string; text: string; parentId?: string }>({
-      query: ({photoId,text,parentId }) => ({
+    addComment:builder.mutation<{id:string;created_at:string},{photoId:string;text:string;parentId?:string}>({
+      query: ({photoId,text,parentId}) => ({
         url:`/photos/${photoId}/comment/`,
         method:"POST",
         body:{
@@ -62,32 +71,37 @@ export const photosApi=api.injectEndpoints({
       }),
       invalidatesTags:["Photos","TaggedPhotos"],
     }),
-    getFavouritePhotos: builder.query<{id:string;image:string}[],void>({
+    getFavouritePhotos: builder.query<Photo[], void>({
       query: () => "/photos/favourites/",
-      providesTags:["Favourites"],
+      providesTags: ["Favourites"],
     }),
     getTaggedPhotos: builder.query<TaggedPhoto[],void>({
       query: () => "/photos/tagged/",
       providesTags:["TaggedPhotos"],
     }),
-    bulkUploadPhotos: builder.mutation<{uploaded:number},{eventId:string;files:File[]}>({
+    bulkUploadPhotos: builder.mutation<
+      { uploaded: number },
+      { eventId: string; files: File[] }
+    >({
       query: ({ eventId, files }) => {
-        const formData=new FormData();
-        formData.append("event",eventId);
+        const formData = new FormData();
+        formData.append("event", eventId);
         files.forEach((file) => {
-          formData.append("images",file);
+          formData.append("images", file);
         });
-        return{
-          url:"/photos/bulk/",
-          method:"POST",
-          body:formData,
+
+        return {
+          url: "/photos/bulk/",
+          method: "POST",
+          body: formData,
         };
       },
-      invalidatesTags:[
-        {type:"Photos",id:"LIST"},
+      invalidatesTags: [
+        { type: "Photos", id: "LIST" },
         "Dashboard",
       ],
     }),
+
     getPhotographerDashboard:builder.query<
       {
         total_uploads:number;
@@ -108,13 +122,36 @@ export const photosApi=api.injectEndpoints({
       query: () => "/photos/dashboard/",
       providesTags:["Dashboard"],
     }),
-    bulkDeletePhotos: builder.mutation<{deleted:number},{photoIds:string[]}>({
+    bulkDeletePhotos: builder.mutation<
+      { deleted: number },
+      { photo_ids: string[] }
+    >({
       query: (body) => ({
-        url:"/photos/bulk-delete/",
-        method:"POST",
+        url: "/photos/bulk-delete/",
+        method: "POST",
         body,
       }),
-      invalidatesTags:["Photos", "Dashboard"],
+      invalidatesTags: (result, error, arg) => [
+        "Dashboard",
+        { type: "Photos", id: "LIST" },
+        ...arg.photo_ids.map((id) => ({
+          type: "Photos" as const,
+          id,
+        })),
+      ],
+    }),
+    recordView: builder.mutation<void, string>({
+      query: (photoId) => ({
+        url: `/photos/${photoId}/view/`,
+        method: "POST",
+      }),
+      invalidatesTags: ["Photos", "Dashboard"],
+    }),
+    getPhotoById: builder.query<Photo, string>({
+      query: (photoId) => `/photos/${photoId}/`,
+      providesTags: (result, error, id) => [
+        { type: "Photos", id },
+      ],
     }),
   }),
   overrideExisting: false,
@@ -132,4 +169,6 @@ export const {
   useBulkUploadPhotosMutation,
   useGetPhotographerDashboardQuery,
   useBulkDeletePhotosMutation,
+  useRecordViewMutation,
+  useGetPhotoByIdQuery,
 }=photosApi;

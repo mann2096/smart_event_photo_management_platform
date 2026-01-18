@@ -18,9 +18,8 @@ class PhotoVersion(models.Model):
     image=models.ImageField(upload_to="photos/versions/")
     resolution=models.CharField(max_length=50)
     is_watermarked=models.BooleanField(default=False)
-
     class Meta:
-        unique_together = ("photo", "resolution", "is_watermarked")
+        unique_together=("photo","resolution","is_watermarked")
 
 class Tag(models.Model):
     name=models.CharField(max_length=100,unique=True)
@@ -28,12 +27,11 @@ class Tag(models.Model):
         return self.name
 
 class PhotoTag(models.Model):
-    photo=models.ForeignKey("photos.Photo",on_delete=models.CASCADE)
-    tag=models.ForeignKey(Tag,on_delete=models.CASCADE)
-    confidence=models.FloatField(null=True,blank=True)
-
+    photo=models.ForeignKey("photos.Photo",on_delete=models.CASCADE,related_name="photo_tags"  )
+    tag=models.ForeignKey(Tag, on_delete=models.CASCADE)
+    confidence=models.FloatField(null=True, blank=True)
     class Meta:
-        unique_together = ("photo", "tag")
+        unique_together=("photo","tag")
 
 class Comment(models.Model):
     photo=models.ForeignKey("photos.Photo",on_delete=models.CASCADE,related_name="comments")
@@ -45,9 +43,8 @@ class Comment(models.Model):
 class PhotoLike(models.Model):
     user=models.ForeignKey("users.User",on_delete=models.CASCADE,related_name="liked_photos",)
     photo=models.ForeignKey("photos.Photo",on_delete=models.CASCADE,related_name="likes",)
-
     class Meta:
-        unique_together = ("user","photo")
+        unique_together=("user","photo")
 
 class PhotoShareLink(models.Model):
     id=models.UUIDField(primary_key=True,default=uuid.uuid4,editable=False)
@@ -60,17 +57,8 @@ class PhotoShareLink(models.Model):
         return self.expires_at and timezone.now()>self.expires_at
     
 class PhotoView(models.Model):
-    user = models.ForeignKey(
-        "users.User",
-        on_delete=models.CASCADE,
-        related_name="photo_views"
-    )
-    photo = models.ForeignKey(
-        "photos.Photo",
-        on_delete=models.CASCADE,
-        related_name="view_records"
-    )
-    created_at = models.DateTimeField(auto_now_add=True)
-
+    user=models.ForeignKey("users.User",on_delete=models.CASCADE,related_name="photo_views")
+    photo=models.ForeignKey("photos.Photo",on_delete=models.CASCADE,related_name="view_records")
+    created_at=models.DateTimeField(auto_now_add=True)
     class Meta:
-        unique_together = ("user", "photo")
+        unique_together=("user","photo")

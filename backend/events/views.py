@@ -1,6 +1,5 @@
 from django.utils import timezone
 from rest_framework.decorators import action
-from urllib import response
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.permissions import IsAuthenticated,AllowAny
 from events.permissions import CanUpdateEvent
@@ -29,7 +28,7 @@ class EventViewSet(ModelViewSet):
 
     def get_permissions(self):
         if self.action in ["update","partial_update","destroy"]:
-            return [IsAuthenticated(), CanUpdateEvent()]
+            return [IsAuthenticated(),CanUpdateEvent()]
         return super().get_permissions()
 
     def perform_create(self,serializer):
@@ -39,15 +38,10 @@ class EventViewSet(ModelViewSet):
             event=event,
             role="coordinator",
         )
-    @action(
-        detail=False,
-        methods=["get"],
-        permission_classes=[AllowAny],
-        url_path="public",
-    )
-    def public_events(self, request):
+    @action(detail=False,methods=["get"],permission_classes=[AllowAny],url_path="public",)
+    def public_events(self,request):
         events=Event.objects.filter(visibility="public")
-        serializer=self.get_serializer(events, many=True)
+        serializer=self.get_serializer(events,many=True)
         return Response(serializer.data)
     
 class ChangeEventRoleAPI(APIView):
@@ -74,39 +68,60 @@ class ChangeEventRoleAPI(APIView):
 class CreateEventInviteAPI(APIView):
     permission_classes=[IsAuthenticated]
     def post(self,request,event_id):
-        event=Event.objects.get(id=event_id)
+        event=get_object_or_404(Event,id=event_id)
         user=request.user
         if not (
             user.is_superuser or
             UserEvent.objects.filter(
-            user=request.user,
-            event=event,
-            role="coordinator"
-        ).exists()
+                user=user,
+                event=event,
+                role="coordinator"
+            ).exists()
         ):
             raise PermissionDenied("Only coordinators can create invites")
-        invite=EventInvite.objects.create(
+        
+        invite,created=EventInvite.objects.get_or_create(
             event=event,
-            created_by=request.user
+            is_active=True,
+            defaults={
+                "created_by":user,
+            }
         )
         return Response({
-            "invite_link": f"{settings.FRONTEND_BASE_URL}/join-event/{invite.id}"
+            "invite_id":str(invite.id),
+            "invite_link":f"{settings.FRONTEND_BASE_URL}/join-event/{invite.id}",
+            "created":created,
         })
+
     
 class JoinEventAPI(APIView):
     permission_classes=[IsAuthenticated]
     def post(self,request,invite_id):
-        invite=EventInvite.objects.filter(id=invite_id, is_active=True).first()
+        invite=EventInvite.objects.filter(
+            id=invite_id,
+            is_active=True
+        ).first()
         if not invite:
-            return Response({"detail":"Invalid invite"},status=400)
-        if invite.expires_at and invite.expires_at<timezone.now():
-            return Response({"detail": "Invite expired"},status=400)
-        UserEvent.objects.get_or_create(
+            return Response(
+                {"detail":"Invalid invite"},
+                status=400
+            )
+        if invite.expires_at and invite.expires_at < timezone.now():
+            return Response(
+                {"detail": "Invite expired"},
+                status=400
+            )
+        obj, created=UserEvent.objects.get_or_create(
             user=request.user,
             event=invite.event,
-            defaults={"role":"member"}
+            defaults={"role": "member"},
         )
-        return Response({"status":"joined","event_id":invite.event.id})
+        return Response({
+            "status":"joined" if created else "already_joined",
+            "event_id":str(invite.event.id),
+        })
+
+
     
 class EventParticipantsAPI(APIView):
     permission_classes=[IsAuthenticated]

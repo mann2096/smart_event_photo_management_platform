@@ -1,17 +1,20 @@
-export type Photo={
-  id:string;
-  event:{
-    id:string;
-    name:string;
-    visibility:"public"|"private";
+export type Photo = {
+  id: string;
+  event: {
+    id: string;
+    name: string;
+    visibility: "public" | "private";
   };
-  image:string;
-  uploaded_by:{
-    id:string;
-    user_name:string;
-    email:string;
+  image: string;
+  uploaded_by: {
+    id: string;
+    user_name: string;
+    email: string;
   };
-  uploaded_at:string;
-  exif_data:any|null;
-  views:number;
+  uploaded_at: string;
+  exif_data: any | null;
+  views: number;
+  likes_count: number;
+  liked_by_me: boolean;
+  favourited_by_me:boolean;
 };

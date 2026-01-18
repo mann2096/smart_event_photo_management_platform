@@ -18,7 +18,21 @@ SECRET_KEY =os.getenv("SECRET_KEY")
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv("DEBUG")=="True"
-ALLOWED_HOSTS = ["localhost", "127.0.0.1"]
+ALLOWED_HOSTS = [
+    "boltless-carolann-subfoliate.ngrok-free.dev",
+    "localhost",
+    "127.0.0.1",
+]
+
+from datetime import timedelta
+
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=30),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
+    "ROTATE_REFRESH_TOKENS": True,
+    "BLACKLIST_AFTER_ROTATION": False,
+    "AUTH_HEADER_TYPES": ("Bearer",),
+}
 
 
 
@@ -57,7 +71,7 @@ CHANNEL_LAYERS = {
     },
 }
 
-CELERY_BROKER_URL = "redis://localhost:6379/0"
+CELERY_BROKER_URL = "redis://127.0.0.1:6379/0"
 CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 
@@ -74,10 +88,31 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
+CORS_ALLOW_CREDENTIALS = True
 
-CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_HEADERS = [
+    "accept",
+    "accept-encoding",
+    "authorization",
+    "content-type",
+    "dnt",
+    "origin",
+    "user-agent",
+    "x-csrftoken",
+    "x-requested-with",
+    "ngrok-skip-browser-warning",
+]
 
 
+CORS_ALLOWED_ORIGINS = [
+    "https://boltless-carolann-subfoliate.ngrok-free.dev",
+    "http://localhost:5173",  
+]
+
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:5173",
+    "https://boltless-carolann-subfoliate.ngrok-free.dev",
+]
 ROOT_URLCONF = 'core.urls'
 
 TEMPLATES = [
@@ -111,6 +146,8 @@ DATABASES = {
 }
 
 AUTH_USER_MODEL = "users.User"
+
+APPEND_SLASH = False
 
 # Password validation
 # https://docs.djangoproject.com/en/6.0/ref/settings/#auth-password-validators
@@ -165,6 +202,9 @@ FRONTEND_BASE_URL = os.getenv(
     "http://localhost:3000"  
 )
 
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+USE_X_FORWARDED_HOST = True
+
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 
 EMAIL_HOST = "smtp.gmail.com"
@@ -175,9 +215,12 @@ EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER")
 EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD")
 
 DEFAULT_FROM_EMAIL = "Smart Event Photos <your_email@gmail.com>"
-
 OMNIPORT_CLIENT_ID = os.getenv("OMNIPORT_CLIENT_ID")
 OMNIPORT_CLIENT_SECRET = os.getenv("OMNIPORT_CLIENT_SECRET")
-OMNIPORT_REDIRECT_URI = "http://127.0.0.1:8000/api/users/auth/omniport/callback/"
+OMNIPORT_REDIRECT_URI = "https://boltless-carolann-subfoliate.ngrok-free.dev/api/users/auth/omniport/callback/"
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
+
+DATA_UPLOAD_MAX_MEMORY_SIZE=104857600
+FILE_UPLOAD_MAX_MEMORY_SIZE=104857600
+

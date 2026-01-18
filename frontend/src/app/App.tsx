@@ -9,24 +9,30 @@ import PhotosByEventPage from "../pages/PhotosByEventPage";
 import EventGalleryPage from "../pages/EventGalleryPage";
 import EventsPage from "../pages/EventsPage";
 import CreateEvent from "../pages/CreateEvent";
-import ManageEventRolesPage from "../pages/ManageEventRolesPage";
 import NotificationsPage from "../pages/NotificationsPage";
 import FavouritesPage from "../pages/FavouritesPage";
 import TaggedIn from "../pages/TaggedIn";
 import Public from "../pages/Public";
-import UploadPhotos from "../pages/UploadPhotos";
 import PhotographerDashboardPage from "../pages/PhotographerDashboardPage";
+import ProfilePage from "../pages/ProfilePages";
+import ManageEventPage from "../pages/ManageEventPage";
 import { useNotificationsSocket } from "../hooks/useNotificationsSocket";
+import RouterBootstrap from "../RouterBootstrap";
+import JoinEvent from "../pages/JoinEvent";
 
 export default function App() {
   useNotificationsSocket();
+
   return (
     <BrowserRouter>
+      <RouterBootstrap />
+
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/verify-otp" element={<VerifyOTP />} />
-        <Route path="/auth/omniport/callback" element={<OmniportCallback />}/>
+        <Route path="/auth/omniport/callback" element={<OmniportCallback />} />
+
         <Route
           element={
             <ProtectedRoute>
@@ -35,18 +41,19 @@ export default function App() {
           }
         >
           <Route path="/photos" element={<PhotosByEventPage />} />
-          <Route path="/photos/upload" element={<UploadPhotos />} />
           <Route path="/events" element={<EventsPage />} />
           <Route path="/events/create" element={<CreateEvent />} />
           <Route path="/events/:eventId" element={<EventGalleryPage />} />
-          <Route path="/events/:eventId/manage-roles" element={<ManageEventRolesPage />}/>
           <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/favourites" element={<FavouritesPage />} />
           <Route path="/tagged" element={<TaggedIn />} />
           <Route path="/public" element={<Public />} />
-
-          <Route path="/dashboard" element={<PhotographerDashboardPage />}/>
+          <Route path="/dashboard" element={<PhotographerDashboardPage />} />
+          <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/events/:eventId/manage" element={<ManageEventPage />} />
+          <Route path="/join-event/:inviteId" element={<JoinEvent />} />
         </Route>
+
         <Route path="*" element={<Login />} />
       </Routes>
     </BrowserRouter>

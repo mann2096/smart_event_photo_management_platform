@@ -12,5 +12,4 @@ urlpatterns=[
     path("join/<uuid:invite_id>/",JoinEventAPI.as_view()),
     path("<uuid:event_id>/participants/",EventParticipantsAPI.as_view()),
     path("<uuid:event_id>/my-role/",MyEventRoleAPI.as_view()),
-
 ]

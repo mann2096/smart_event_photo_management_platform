@@ -1,11 +1,12 @@
 from django.utils import timezone
 from datetime import timedelta
 import secrets
+from django.contrib.auth.mixins import LoginRequiredMixin
+import mimetypes
+from django.views import View
 from notifications.email import send_notification_email
-from photos.permissions import CanDeletePhoto
-from events import models
 from events.models import Event
-from django.http import Http404
+from django.http import FileResponse, Http404
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
@@ -14,7 +15,7 @@ from events.permissions import user_has_event_access
 from notifications.utils import notify_user
 from .tasks import apply_watermark,auto_tag_photo,extract_exif_data,generate_thumbnail
 from .models import Photo,PhotoLike, PhotoShareLink, PhotoVersion, PhotoView
-from .serializers import PhotoSerializer, PhotoShareLinkSerializer
+from .serializers import PhotoCommentSerializer, PhotoSerializer, PhotoShareLinkSerializer
 from users.models import User,UserEvent,TaggedBy
 from celery import chain
 from rest_framework.response import Response
@@ -23,31 +24,76 @@ from .models import Comment
 from django.db.models import F
 from django.shortcuts import get_object_or_404
 from django.db import transaction
-from django.db.models import Sum,Count
+from django.db.models import Sum
 from django.db.models import Q
+import uuid
+from notifications.utils import build_notification_payload
+from django.db.models.functions import Cast
+from django.db.models import DateField
+import os
+from rest_framework.decorators import action
 
 class BulkPhotoDeleteAPI(APIView):
-    permission_classes=[IsAuthenticated]
-    def post(self,request):
-        photo_ids=request.data.get("photo_ids")
+    permission_classes = [IsAuthenticated]
+    def post(self, request):
+        user = request.user
+        photo_ids = request.data.get("photo_ids", [])
+
         if not photo_ids:
-            return Response({"detail":"photo_ids required"},status=400)
-        photos=Photo.objects.filter(id__in=photo_ids)
-        if not photos.exists():
-            return Response({"detail":"No photos found"},status=404)
-        with transaction.atomic():
-            for photo in photos:
-                if not request.user.is_superuser:
-                    if photo.uploaded_by!=request.user:
-                        if not UserEvent.objects.filter(
-                            user=request.user,
-                            event=photo.event,
-                            role__in=["photographer","coordinator"]
-                        ).exists():
-                            raise PermissionDenied("Not allowed to delete one or more photos")
-            deleted_count=photos.count()
-            photos.delete()
-        return Response({"deleted": deleted_count},status=200)
+            return Response(
+                {"detail": "No photos selected"},
+                status=400
+            )
+        photos = (
+            Photo.objects
+            .filter(id__in=photo_ids)
+            .select_related("event", "uploaded_by")
+        )
+        if photos.count() != len(photo_ids):
+            return Response(
+                {"detail": "One or more photos not found"},
+                status=404
+            )
+        unauthorized_photos = []
+        for photo in photos:
+            if user.is_superuser:
+                continue
+
+            try:
+                user_event = UserEvent.objects.get(
+                    user=user,
+                    event=photo.event
+                )
+            except UserEvent.DoesNotExist:
+                unauthorized_photos.append(photo.id)
+                continue
+
+            if user_event.role == "coordinator":
+                continue
+
+            if (
+                user_event.role == "photographer"
+                and photo.uploaded_by_id == user.id
+            ):
+                continue
+
+            unauthorized_photos.append(photo.id)
+        if unauthorized_photos:
+            return Response(
+                {
+                    "detail": "You do not have permission to delete one or more selected photos",
+                    "unauthorized_photo_ids": unauthorized_photos,
+                },
+                status=403
+            )
+        deleted_count = photos.count()
+        photos.delete()
+
+        return Response(
+            {"deleted": deleted_count},
+            status=200
+        )
+
 
 class BulkPhotoRetagAPI(APIView):
     permission_classes=[IsAuthenticated]
@@ -79,67 +125,82 @@ class BulkPhotoRetagAPI(APIView):
                         tagged_user=user,
                         tagged_by=request.user
                     )
-        return Response({"status":"retagged"}, status=200)
+        return Response({"status":"retagged"},status=200)
 
 class BulkPhotoUploadAPI(APIView):
     permission_classes=[IsAuthenticated]
     def post(self,request):
-        event_id=request.data["event"]
+        event_id=request.data.get("event")
         images=request.FILES.getlist("images")
-        event=get_object_or_404(Event,id=event_id)
+        if not event_id or not images:
+            return Response(
+                {"detail":"Event and at least one image are required"},
+                status=400,
+            )
+        event=get_object_or_404(Event, id=event_id)
         if not request.user.is_superuser:
-                if not UserEvent.objects.filter(
-                    user=request.user,
-                    event=event,
-                    role__in=["photographer","coordinator"]
-                ).exists():
-                    raise PermissionDenied("Not allowed to upload photos to this event")
+            if not UserEvent.objects.filter(
+                user=request.user,
+                event=event,
+                role__in=["photographer","coordinator"],
+            ).exists():
+                raise PermissionDenied("Not allowed to upload photos")
+        photos=[]
         for image in images:
             photo=Photo.objects.create(
                 event=event,
                 image=image,
-                uploaded_by=request.user
+                uploaded_by=request.user,
             )
+            photos.append(photo)
             chain(
-                extract_exif_data.s(photo.id),
-                generate_thumbnail.s(),
-                apply_watermark.s(),
-                auto_tag_photo.s(),
+                extract_exif_data.si(photo.id),
+                generate_thumbnail.si(photo.id),
+                apply_watermark.si(photo.id),
+                auto_tag_photo.si(photo.id),
             ).delay()
-        return Response({"uploaded":len(images)},status=201)
-
+        participants=(
+            UserEvent.objects
+            .filter(event=event)
+            .select_related("user")
+        )
+        for ue in participants:
+            if ue.user_id==request.user.id:
+                continue
+            notify_user(
+                user_id=ue.user.id,
+                payload=build_notification_payload(
+                    type="bulk_upload",
+                    actor=request.user,
+                    event=event,
+                    extra={
+                        "photo_count":len(photos),
+                    },
+                ),
+            )
+            send_notification_email(
+                to_email=ue.user.email,
+                subject=f"New photos uploaded to {event.name}",
+                message=(
+                    f"{request.user.user_name} uploaded "
+                    f"{len(photos)} new photos to the event "
+                    f"'{event.name}'."
+                ),
+            )
+        return Response(
+            {"uploaded": len(photos)},
+            status=201,
+        )
 
 class PhotoDetailAPI(APIView):
     permission_classes=[IsAuthenticated]
     def get(self,request,photo_id):
         photo=get_object_or_404(Photo,id=photo_id)
-        if request.user.is_authenticated:
-            view,created=PhotoView.objects.get_or_create(user=request.user,photo=photo)
-            if created:
-                Photo.objects.filter(id=photo.id).update(
-                    views=F("views")+1
-                )
-        return Response({"image": photo.image.url})
-
-class PhotoDownloadAPI(APIView):
-    permission_classes=[IsAuthenticated]
-    def post(self,request,photo_id):
-        photo=get_object_or_404(Photo,id=photo_id)
-        if not (
-            request.user.is_superuser or
-            user_has_event_access(request.user,photo.event)
-        ):
-            raise PermissionDenied("You are not allowed to download this photo")
-        variant=request.query_params.get("variant","original")
-        Photo.objects.filter(id=photo_id).update(downloads=F("downloads")+1)
-        if variant=="original":
-            return Response({"url":photo.image.url})
-        version=get_object_or_404(
-            PhotoVersion,
-            photo=photo,
-            resolution=variant
+        serializer=PhotoSerializer(
+            photo,
+            context={"request":request}
         )
-        return Response({"url":version.image.url})
+        return Response(serializer.data)
 
 class CreatePhotoShareLinkAPI(APIView):
     permission_classes=[IsAuthenticated]
@@ -196,7 +257,7 @@ class AddCommentAPI(APIView):
             photo=Photo.objects.get(id=photo_id)
         except Photo.DoesNotExist:
             raise Http404("Photo not found")
-        if not user_has_event_access(request.user, photo.event):
+        if not user_has_event_access(request.user,photo.event):
             return Response({"detail":"Access denied"},status=403)
         parent_id=request.data.get("parent_id")
         parent=None
@@ -214,12 +275,16 @@ class AddCommentAPI(APIView):
         )
         if parent is None and photo.uploaded_by!=request.user:
             notify_user(
-                photo.uploaded_by.id,
-                {
-                    "type":"comment",
-                    "photo_id":str(photo.id),
-                    "comment":comment.text,
-                }
+                user_id=photo.uploaded_by.id,
+                payload=build_notification_payload(
+                    type="comment",
+                    actor=request.user,
+                    event=photo.event,
+                    photo=photo,
+                    extra={
+                        "comment": comment.text,
+                    },
+                ),
             )
             send_notification_email(
                 to_email=photo.uploaded_by.email,
@@ -232,12 +297,16 @@ class AddCommentAPI(APIView):
             )
         if parent is not None and parent.user!=request.user:
             notify_user(
-                parent.user.id,
-                {
-                    "type":"reply",
-                    "photo_id":str(photo.id),
-                    "comment":comment.text,
-                }
+                user_id=parent.user.id,
+                payload=build_notification_payload(
+                    type="reply",
+                    actor=request.user,
+                    event=photo.event,
+                    photo=photo,
+                    extra={
+                        "comment": comment.text,
+                    },
+                ),
             )
             send_notification_email(
                 to_email=parent.user.email,
@@ -256,46 +325,31 @@ class AddCommentAPI(APIView):
             status=201
         )
 
-
 class PhotoCommentsAPI(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request, photo_id):
-        photo = get_object_or_404(Photo, id=photo_id)
-
-        if not (
-            request.user.is_superuser or
-            user_has_event_access(request.user, photo.event)
-        ):
+    permission_classes=[IsAuthenticated]
+    def get(self,request,photo_id):
+        photo=get_object_or_404(Photo,id=photo_id)
+        if not (request.user.is_superuser or user_has_event_access(request.user, photo.event)):
             raise PermissionDenied("Access denied")
-
-        comments = Comment.objects.filter(
-            photo=photo,
-            parent__isnull=True
-        ).prefetch_related("replies")
-
-        def serialize_comment(c):
-            return {
-                "id": c.id,
-                "text": c.text,
-                "user": c.user.email,
-                "created_at": c.created_at,
-                "replies": [serialize_comment(r) for r in c.replies.all()]
-            }
-
-        return Response([serialize_comment(c) for c in comments])
-
+        comments=(
+            Comment.objects
+            .filter(photo=photo,parent__isnull=True)
+            .select_related("user")
+            .prefetch_related("replies__user")
+            .order_by("created_at")
+        )
+        serializer=PhotoCommentSerializer(comments,many=True)
+        return Response(serializer.data)
 
 class TagUserOnPhotoAPI(APIView):
     permission_classes=[IsAuthenticated]
-    def post(self, request, photo_id):
+    def post(self,request,photo_id):
         try:
             photo=Photo.objects.get(id=photo_id)
         except Photo.DoesNotExist:
             raise Http404("Photo not found")
         if not user_has_event_access(request.user, photo.event):
             return Response({"detail":"Access denied"},status=403)
-
         tagged_user_id=request.data.get("user_id")
         if not tagged_user_id:
             return Response({"detail":"user_id required"}, status=400)
@@ -306,18 +360,19 @@ class TagUserOnPhotoAPI(APIView):
         tag,created=TaggedBy.objects.get_or_create(
             tagged_user=tagged_user,
             photo=photo,
-            defaults={"tagged_by": request.user}
+            defaults={"tagged_by":request.user}
         )
         if not created:
-            return Response({"detail": "User already tagged"},status=400)
+            return Response({"detail":"User already tagged"},status=400)
         if tagged_user!=request.user:
             notify_user(
-                tagged_user.id,
-                {
-                    "type":"tagged",
-                    "photo_id":str(photo.id),
-                    "tagged_by":request.user.user_name,
-                }
+                user_id=tagged_user.id,
+                payload=build_notification_payload(
+                    type="tagged",
+                    actor=request.user,
+                    event=photo.event,
+                    photo=photo,
+                ),
             )
             send_notification_email(
                 to_email=tagged_user.email,
@@ -327,7 +382,6 @@ class TagUserOnPhotoAPI(APIView):
                     f"'{photo.event.name}'."
                 )
             )
-
         return Response(
             {
                 "photo_id":photo.id,
@@ -336,12 +390,20 @@ class TagUserOnPhotoAPI(APIView):
             },
             status=201
         )
-
-
+    
 class MyTaggedPhotosAPI(APIView):
     permission_classes=[IsAuthenticated]
     def get(self,request):
-        taggings=(TaggedBy.objects.filter(tagged_user=request.user).select_related("photo","photo__event","tagged_by"))
+        taggings=(
+            TaggedBy.objects
+            .filter(tagged_user=request.user)
+            .select_related(
+                "tagged_user",
+                "photo",
+                "photo__event",
+                "photo__uploaded_by",
+            )
+        )
         data=[
             {
                 "photo":{
@@ -357,22 +419,20 @@ class MyTaggedPhotosAPI(APIView):
                     },
                 },
                 "tagged_at":tag.created_at,
-                "tagged_by":{
-                    "id":tag.tagged_by.id,
-                    "user_name":tag.tagged_by.user_name,
-                    "email":tag.tagged_by.email,
+                "tagged_user":{  
+                    "id":tag.tagged_user.id,        
+                    "user_name":tag.tagged_user.user_name,
+                    "email":tag.tagged_user.email,
                 },
             }
             for tag in taggings
         ]
         return Response(data)
-
-
-
+    
 class PhotoFavouriteToggleAPI(APIView):
     permission_classes=[IsAuthenticated]
     def post(self,request,photo_id):
-        photo=get_object_or_404(Photo, id=photo_id)
+        photo=get_object_or_404(Photo,id=photo_id)
         if not user_has_event_access(request.user, photo.event):
             raise PermissionDenied("Not allowed")
         fav,created=Favourite.objects.get_or_create(user=request.user,photo=photo)
@@ -384,16 +444,21 @@ class PhotoFavouriteToggleAPI(APIView):
 class MyFavouritesAPI(APIView):
     permission_classes=[IsAuthenticated]
     def get(self,request):
-        photos=Photo.objects.filter(favourited_by__user=request.user).distinct()
-        data=[{"id":p.id,"image":p.image.url} for p in photos]
-        return Response(data)
-
+        photos=Photo.objects.filter(
+            favourited_by__user=request.user
+        ).select_related("event","uploaded_by")
+        serializer=PhotoSerializer(
+            photos,
+            many=True,
+            context={"request":request}
+        )
+        return Response(serializer.data)
 
 class PhotoLikeToggleAPI(APIView):
     permission_classes=[IsAuthenticated]
     def post(self,request,photo_id):
         photo=get_object_or_404(Photo,id=photo_id)
-        if not user_has_event_access(request.user,photo.event):
+        if not user_has_event_access(request.user, photo.event):
             raise PermissionDenied("Not allowed")
         like,created=PhotoLike.objects.get_or_create(
             user=request.user,
@@ -401,90 +466,143 @@ class PhotoLikeToggleAPI(APIView):
         )
         if not created:
             like.delete()
-            return Response({"liked":False})
-        if photo.uploaded_by!=request.user:
-            notify_user(photo.uploaded_by.id,
-                {
-                    "type":"photo_like",
-                    "photo_id":str(photo.id),
-                    "liked_by":request.user.user_name,
-                }
-            )
-        if photo.uploaded_by and photo.uploaded_by != request.user:
-            send_notification_email(
-                to_email=photo.uploaded_by.email,
-                subject="Your photo got a new like",
-                message=(
-                    f"{request.user.user_name} liked your photo "
-                    f"in event '{photo.event.name}'."
+            liked=False
+        else:
+            liked=True
+            if photo.uploaded_by!=request.user:
+                notify_user(
+                    user_id=photo.uploaded_by.id,
+                    payload=build_notification_payload(
+                        type="photo_like",
+                        actor=request.user,
+                        event=photo.event,
+                        photo=photo,
+                    ),
                 )
+                send_notification_email(
+                    to_email=photo.uploaded_by.email,
+                    subject="Your photo got a new like",
+                    message=(
+                        f"{request.user.user_name} liked your photo "
+                        f"in event '{photo.event.name}'."
+                    ),
+                )
+        likes_count=PhotoLike.objects.filter(photo=photo).count()
+        return Response({
+            "liked":liked,
+            "likes_count":likes_count
+        })
+
+class RecordPhotoViewAPI(APIView):
+    permission_classes=[IsAuthenticated]
+    def post(self,request,photo_id):
+        photo=get_object_or_404(Photo,id=photo_id)
+        view,created=PhotoView.objects.get_or_create(
+            user=request.user,
+            photo=photo
+        )
+        if created:
+            Photo.objects.filter(id=photo_id).update(
+                views=F("views")+1
             )
-        return Response({"liked":True})
+        return Response({"status":"ok"})
 
 class PhotoViewSet(ModelViewSet):
     serializer_class=PhotoSerializer
     permission_classes=[IsAuthenticated]
-    def get_queryset(self):
-        user = self.request.user
-        private_only = self.request.query_params.get("private_only") == "true"
+    def get_serializer_context(self):
+        context=super().get_serializer_context()
+        context["request"]=self.request
+        return context
 
+    def _clean_uuid_list(self,values):
+        cleaned=[]
+        for v in values:
+            try:
+                cleaned.append(str(uuid.UUID(v)))
+            except (ValueError,TypeError):
+                continue
+        return cleaned
+
+    def get_queryset(self):
+        user=self.request.user
+        params=self.request.query_params
+        queryset=Photo.objects.all()
+        private_only=params.get("private_only")=="true"
         if private_only:
-            return Photo.objects.filter(
+            queryset=queryset.filter(
                 event__visibility="private",
-                event__participants__user=user
-            ).distinct()
-        if user.is_superuser:
-            queryset = Photo.objects.all()
+                event__participants__user=user,
+            )
         else:
-            queryset = Photo.objects.filter(
+            queryset=queryset.filter(
                 Q(event__visibility="public") |
                 Q(event__participants__user=user)
-            ).distinct()
-
-        event_id = self.request.query_params.get("event")
-        if event_id:
-            queryset = queryset.filter(event_id=event_id)
-            return queryset  
-
-        event_ids_param = self.request.query_params.get("event_ids")
-        if event_ids_param:
-            event_ids = [
-                eid.strip()
-                for eid in event_ids_param.split(",")
-                if eid.strip()
-            ]
-            queryset = queryset.filter(
-                event__id__in=event_ids,
-                event__visibility="public"
             )
-            return queryset 
-
-        photographer_id = self.request.query_params.get("photographer")
-        if photographer_id:
-            queryset = queryset.filter(uploaded_by_id=photographer_id)
-
-        start_date = self.request.query_params.get("start_date")
-        end_date = self.request.query_params.get("end_date")
+        raw_ids=[]
+        raw_ids+=params.getlist("event_ids[]")
+        raw_ids+=params.getlist("event_ids")
+        raw=params.get("event_ids")
+        if raw:
+            raw_ids+=raw.split(",")
+        event_ids=self._clean_uuid_list(raw_ids)
+        if event_ids:
+            queryset=queryset.filter(event__id__in=event_ids)
+        event_name=params.get("event_name")
+        if event_name:
+            queryset=queryset.filter(event__name__icontains=event_name)
+        start_date=params.get("start_date")
+        end_date=params.get("end_date")
         if start_date and end_date:
-            queryset = queryset.filter(
-                taken_at__date__range=[start_date, end_date]
+            queryset=queryset.annotate(
+                event_start=Cast("event__start_date",DateField()),
+                event_end=Cast("event__end_date",DateField()),
+            ).filter(
+                event_start__lte=end_date,
+                event_end__gte=start_date,
             )
-
-        tags = self.request.query_params.getlist("tags")
+        tags=params.getlist("tags")
         if tags:
-            queryset = queryset.filter(
-                tags__tag__name__in=tags
-            ).distinct()
-
-        timeline = self.request.query_params.get("timeline")
-        if timeline == "true":
-            queryset = queryset.order_by(
+            queryset=queryset.filter(photo_tags__tag__name__in=tags).distinct()
+        if params.get("timeline")=="true":
+            queryset=queryset.order_by(
                 F("taken_at").asc(nulls_last=True),
                 F("uploaded_at").asc(nulls_last=True),
             )
+        return queryset.distinct()
+    
+    @action(detail=True, methods=["get"], url_path="download")
+    def download_watermarked(self, request, pk=None):
+        photo = self.get_object()
 
-        return queryset
+        if not (
+            request.user.is_superuser
+            or user_has_event_access(request.user, photo.event)
+        ):
+            raise PermissionDenied("Access denied")
 
+        try:
+            version = PhotoVersion.objects.get(
+                photo=photo,
+                resolution="original",
+                is_watermarked=True,
+            )
+        except PhotoVersion.DoesNotExist:
+            raise Http404("Watermarked version not available")
+
+        path = version.image.path
+        if not os.path.exists(path):
+            raise Http404("File missing")
+
+        content_type, _ = mimetypes.guess_type(path)
+        content_type = content_type or "application/octet-stream"
+
+        return FileResponse(
+            open(path, "rb"),
+            as_attachment=True,
+            filename=os.path.basename(path),
+            content_type=content_type,
+        )
     def perform_create(self,serializer):
         event=serializer.validated_data["event"]
         user=self.request.user
@@ -495,11 +613,10 @@ class PhotoViewSet(ModelViewSet):
                 role__in=["photographer","coordinator"]
             ).exists():
                 raise PermissionDenied("Not a photographer for this event")
-        participants = UserEvent.objects.filter(
-            event=event
-        ).select_related("user")
+
+        participants=UserEvent.objects.filter(event=event).select_related("user")
         for ue in participants:
-            if ue.user != user:
+            if ue.user!=user:
                 send_notification_email(
                     to_email=ue.user.email,
                     subject=f"New photos uploaded in {event.name}",
@@ -508,8 +625,7 @@ class PhotoViewSet(ModelViewSet):
                         f"to the event '{event.name}'."
                     )
                 )
-        photo=serializer.save(uploaded_by=user)
-        
+        serializer.save(uploaded_by=user)
 
 class PhotographerDashboardAPI(APIView):
     permission_classes=[IsAuthenticated]
@@ -520,15 +636,9 @@ class PhotographerDashboardAPI(APIView):
             total_uploads=photos.count()
             total_views=photos.aggregate(total=Sum("views"))["total"] or 0
             total_downloads=photos.aggregate(total=Sum("downloads"))["total"] or 0
-            total_likes=PhotoLike.objects.filter(
-                photo__uploaded_by=user
-            ).count()
+            total_likes=PhotoLike.objects.filter(photo__uploaded_by=user).count()
             events_data=[]
-            events = Event.objects.filter(
-                photos__uploaded_by=user
-            ).distinct()
-
-
+            events=Event.objects.filter(photos__uploaded_by=user).distinct()
             for event in events:
                 event_photos=photos.filter(event=event)
                 events_data.append({
@@ -537,10 +647,7 @@ class PhotographerDashboardAPI(APIView):
                     "photo_count":event_photos.count(),
                     "views":event_photos.aggregate(v=Sum("views"))["v"] or 0,
                     "downloads":event_photos.aggregate(d=Sum("downloads"))["d"] or 0,
-                    "likes":PhotoLike.objects.filter(
-                        photo__in=event_photos
-                    ).count(),
-                })
+                    "likes":PhotoLike.objects.filter(photo__in=event_photos).count(),})
             return Response({
                 "total_uploads":total_uploads,
                 "total_views":total_views,
@@ -549,5 +656,5 @@ class PhotographerDashboardAPI(APIView):
                 "events":events_data,
             })
         except Exception as e:
-            print("DASHBOARD ERROR:", repr(e))
+            print("DASHBOARD ERROR:",repr(e))
             raise

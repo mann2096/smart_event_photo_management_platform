@@ -6,5 +6,5 @@ urlpatterns = [
     path("register/",RegisterView.as_view()),
     path("verify-otp/",VerifyOTPView.as_view()),
     path("me/update/",UpdateProfileView.as_view()),
-    path("auth/omniport/callback/",OmniportCallbackView.as_view()),
+    path("auth/omniport/callback/",OmniportCallbackView.as_view(),name="omniport-callback"),
 ]

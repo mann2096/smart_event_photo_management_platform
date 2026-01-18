@@ -16,7 +16,7 @@ export default function OmniportCallback(){
   }
   (async () => {
     await completeAuth(dispatch,access,refresh);
-    navigate("/dashboard");
+    navigate("/photos");
   })();
 },[params,dispatch,navigate]);
   return <p>Logging you in via Omniport...</p>;

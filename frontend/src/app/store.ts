@@ -1,11 +1,13 @@
 import { configureStore } from "@reduxjs/toolkit";
 import { api } from "../services/api";
 import authReducer from "../features/auth/authSlice";
+import photoFiltersReducer from "../features/photos/photoFiltersSlice";
 
 export const store=configureStore({
   reducer:{
     [api.reducerPath]:api.reducer,
     auth:authReducer,
+    photoFilters:photoFiltersReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware().concat(api.middleware),

@@ -5,7 +5,6 @@ export const eventsApi=api.injectEndpoints({
   endpoints:(builder) => ({
     getEvents: builder.query<{results:Event[]},void>({
       query: () => "/events/",
-      providesTags:["Events"],
     }),
     getPublicEvents: builder.query<Event[],void>({
       query: () => "/events/public/",
@@ -40,14 +39,52 @@ export const eventsApi=api.injectEndpoints({
     getMyEventRole: builder.query<{ role: string | null },string>({
       query: (eventId) => `/events/${eventId}/my-role/`,
     }),
+    getEventById: builder.query<Event, string>({
+      query: (eventId) => `/events/${eventId}/`,
+    }),
+
+    updateEvent: builder.mutation<
+      Event,
+      { eventId: string; data: Partial<Event> }
+    >({
+      query: ({ eventId, data }) => ({
+        url: `/events/${eventId}/`,
+        method: "PATCH",
+        body: data,
+      }),
+    }),
+    joinEvent: builder.mutation<
+      { status: string; event_id: string },
+      string
+    >({
+      query: (inviteId) => ({
+        url: `/events/join/${inviteId}/`,
+        method: "POST",
+      }),
+      invalidatesTags: ["Events", "EventParticipants"],
+    }),
+    createEventInvite: builder.mutation<
+      { invite_link: string; created: boolean },
+      string
+    >({
+      query: (eventId) => ({
+        url: `/events/${eventId}/invite/`,
+        method: "POST",
+      }),
+    }),
+
   }),
 });
 
 export const {useGetEventsQuery}=eventsApi;
 export const { 
+  useGetEventByIdQuery,
+  useUpdateEventMutation,
   useGetPublicEventsQuery,
   useGetEventParticipantsQuery,
   useCreateEventMutation,
   useChangeEventRoleMutation,
+  useJoinEventMutation,
+  useCreateEventInviteMutation,
   useGetMyEventRoleQuery,}=eventsApi;
 

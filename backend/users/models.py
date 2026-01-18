@@ -1,6 +1,6 @@
 import uuid
 from django.db import models
-from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseUserManager
+from django.contrib.auth.models import AbstractBaseUser,PermissionsMixin,BaseUserManager
 
 class UserManager(BaseUserManager):
     def create_user(self,email,password=None,**extra_fields):
@@ -36,7 +36,6 @@ class User(AbstractBaseUser,PermissionsMixin):
     is_active=models.BooleanField(default=False)
     USERNAME_FIELD="email"
     REQUIRED_FIELDS=[]
-
     def __str__(self):
         return self.email
 
@@ -52,17 +51,20 @@ class Favourite(models.Model):
     user=models.ForeignKey("users.User",on_delete=models.CASCADE,related_name="favourites",)
     photo=models.ForeignKey("photos.Photo",on_delete=models.CASCADE,related_name="favourited_by",)
     created_at = models.DateTimeField(auto_now_add=True)
-
     class Meta:
         unique_together =("user","photo")
 
 class TaggedBy(models.Model):
     tagged_user=models.ForeignKey("users.User",on_delete=models.CASCADE,related_name="tagged_photos",)
-    tagged_by=models.ForeignKey("users.User",on_delete=models.CASCADE,related_name="tagged_others",)
-    photo=models.ForeignKey("photos.Photo",on_delete=models.CASCADE,related_name="tags",)
+    photo=models.ForeignKey("photos.Photo",on_delete=models.CASCADE,related_name="user_tags",  )
     created_at=models.DateTimeField(auto_now_add=True)
+    tagged_by = models.ForeignKey(
+        "users.User",
+        on_delete=models.CASCADE,
+        related_name="tags_created",
+    )
     class Meta:
-        unique_together = ("tagged_user", "photo")
+        unique_together=("tagged_user","photo")
 
 class EmailOTP(models.Model):
     user=models.ForeignKey("users.User",on_delete=models.CASCADE)

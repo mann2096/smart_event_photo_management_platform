@@ -38,6 +38,15 @@ export const authApi=api.injectEndpoints({
     }),
     getMe:builder.query<User,void>({
       query: () => "/users/me/",
+      providesTags: ["Me"],
+    }),
+    updateProfile: builder.mutation<User, FormData>({
+      query: (formData) => ({
+        url: "/users/me/update/",
+        method: "PATCH",
+        body: formData,
+      }),
+      invalidatesTags: ["Me"],
     }),
   }),
 });
@@ -47,4 +56,5 @@ export const{
   useRegisterMutation,
   useVerifyOTPMutation,
   useGetMeQuery,
+  useUpdateProfileMutation,
 }=authApi;

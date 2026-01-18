@@ -22,9 +22,8 @@ LABELS_PATH=os.path.join(os.path.dirname(__file__),"imagenet_classes.json")
 with open(LABELS_PATH) as f:
     IMAGENET_LABELS=json.load(f)
 
-
 def run_image_classifier(image_path):
-    top_k=5
+    top_k=2
     image=Image.open(image_path).convert("RGB")
     input_tensor=preprocess(image)
     input_batch=input_tensor.unsqueeze(0)
@@ -36,6 +35,5 @@ def run_image_classifier(image_path):
     for prob,idx in zip(top_probs, top_idxs):
         label=IMAGENET_LABELS[idx.item()]
         confidence=round(prob.item(),4)
-        results.append((label, confidence))
-
+        results.append((label,confidence))
     return results

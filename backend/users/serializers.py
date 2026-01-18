@@ -28,20 +28,30 @@ class LoginSerializer(serializers.Serializer):
 
 
 class UserSerializer(serializers.ModelSerializer):
+    profile_photo = serializers.SerializerMethodField()
+
     class Meta:
         model = User
         fields = [
             "id",
-            "email",
             "user_name",
+            "email",
+            "provider",
             "bio",
             "batch",
             "department",
             "profile_photo",
             "created_at",
-            "is_superuser",
+            "is_superuser"
         ]
-        read_only_fields = ["created_at","id","email","is_superuser"]
+
+    def get_profile_photo(self, obj):
+        if not obj.profile_photo:
+            return None
+        request = self.context.get("request")
+        if request:
+            return request.build_absolute_uri(obj.profile_photo.url)
+        return obj.profile_photo.url
 
 class RegisterSerializer(serializers.Serializer):
     email=serializers.EmailField()

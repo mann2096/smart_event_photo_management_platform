@@ -12,17 +12,20 @@ class NotificationListAPI(APIView):
         notifications=Notification.objects.filter(
             user=request.user
         ).order_by("-created_at")
-        serializer=NotificationSerializer(notifications, many=True)
+        serializer=NotificationSerializer(notifications,many=True)
         return Response(serializer.data)
 
 class MarkNotificationReadAPI(APIView):
     permission_classes=[IsAuthenticated]
-
     def post(self,request,notification_id):
-        notification=get_object_or_404(Notification,id=notification_id,user=request.user,)
-        notification.is_read=True
-        notification.save(update_fields=["is_read"])
-        return Response(
-            {"status":"ok"},
-            status=status.HTTP_200_OK
-        )
+        updated=Notification.objects.filter(
+            id=notification_id,
+            user=request.user,
+            is_read=False
+        ).update(is_read=True)
+        if not updated:
+            return Response(
+                {"detail":"Notification not found"},
+                status=404
+            )
+        return Response({"status":"ok"})
