@@ -1,14 +1,13 @@
 import type { PhotoFilters } from "../types/photoFilters";
 
-export function photoFiltersToParams(filters: PhotoFilters) {
+export function photoFiltersToParams(filters:PhotoFilters) {
   const params: Record<string, string | string[]> = {};
   if (filters.private_only === true) {
     params.private_only = "true";
   }
   if (filters.eventId) {
-    params.event = filters.eventId;
+    params.event_ids = filters.eventId; 
   }
-
   if (filters.eventIds?.length) {
     params.event_ids = filters.eventIds;
   }

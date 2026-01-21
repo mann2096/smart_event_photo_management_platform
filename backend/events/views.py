@@ -7,11 +7,14 @@ from .models import Event, EventInvite
 from .serializers import EventSerializer
 from users.models import UserEvent
 from rest_framework.views import APIView
-from rest_framework.exceptions import PermissionDenied
 from django.shortcuts import get_object_or_404
 from django.conf import settings
 from rest_framework.response import Response
 from django.db.models import Q
+from django.contrib.auth import get_user_model
+from rest_framework.exceptions import PermissionDenied, ValidationError
+
+User = get_user_model()
 
 class EventViewSet(ModelViewSet):
     serializer_class=EventSerializer
@@ -27,8 +30,8 @@ class EventViewSet(ModelViewSet):
         ).distinct()
 
     def get_permissions(self):
-        if self.action in ["update","partial_update","destroy"]:
-            return [IsAuthenticated(),CanUpdateEvent()]
+        if self.action in ["update", "partial_update", "destroy"]:
+            return [IsAuthenticated(), CanUpdateEvent()]
         return super().get_permissions()
 
     def perform_create(self,serializer):
@@ -39,10 +42,45 @@ class EventViewSet(ModelViewSet):
             role="coordinator",
         )
     @action(detail=False,methods=["get"],permission_classes=[AllowAny],url_path="public",)
-    def public_events(self,request):
-        events=Event.objects.filter(visibility="public")
-        serializer=self.get_serializer(events,many=True)
+    def public_events(self, request):
+        events = Event.objects.filter(visibility="public")
+        serializer = self.get_serializer(events, many=True)
         return Response(serializer.data)
+    
+    @action(detail=True, methods=["post"], url_path="add-member")
+    def add_member(self, request, pk=None):
+        print("ADD MEMBER HIT")
+        email = request.data.get("email")
+        if not email:
+            raise ValidationError("Email is required")
+        event = self.get_object()
+        if not (
+            request.user.is_superuser or
+            UserEvent.objects.filter(
+                user=request.user,
+                event=event,
+                role="coordinator"
+            ).exists()
+        ):
+            raise PermissionDenied("Not allowed")
+
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            raise ValidationError("No user with this email")
+
+        UserEvent.objects.get_or_create(
+            user=user,
+            event=event,
+            defaults={"role": "member"},
+        )
+
+        return Response({
+            "status": "added",
+            "user_id": str(user.id),
+            "user_name": user.user_name,
+        })
+
     
 class ChangeEventRoleAPI(APIView):
     permission_classes=[IsAuthenticated]
@@ -157,3 +195,41 @@ class MyEventRoleAPI(APIView):
             "role":ue.role if ue else None
         })
     
+class AddEventMemberByEmailAPI(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, event_id):
+        email = request.data.get("email")
+        if not email:
+            raise ValidationError("Email is required")
+
+        try:
+            event = Event.objects.get(id=event_id)
+        except Event.DoesNotExist:
+            raise ValidationError("Event not found")
+        if not (
+            request.user.is_superuser or
+            UserEvent.objects.filter(
+                user=request.user,
+                event=event,
+                role="coordinator"
+            ).exists()
+        ):
+            raise PermissionDenied("Not allowed")
+
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            raise ValidationError("No user with this email")
+
+        UserEvent.objects.get_or_create(
+            user=user,
+            event=event,
+            defaults={"role": "member"},
+        )
+
+        return Response({
+            "status": "added",
+            "user_id": str(user.id),
+            "user_name": user.user_name,
+        })

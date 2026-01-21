@@ -32,7 +32,6 @@ export default function App() {
         <Route path="/register" element={<Register />} />
         <Route path="/verify-otp" element={<VerifyOTP />} />
         <Route path="/auth/omniport/callback" element={<OmniportCallback />} />
-
         <Route
           element={
             <ProtectedRoute>

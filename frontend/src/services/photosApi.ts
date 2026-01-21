@@ -10,7 +10,7 @@ export const photosApi=api.injectEndpoints({
       query: (filters) => {
         const params=photoFiltersToParams(filters);
         return {
-          url:"/photos/",
+          url:"/photos/items/",
           params,
         };
       },

@@ -22,6 +22,13 @@ export const authApi=api.injectEndpoints({
         body:data,
       }),
     }),
+    omniportLogin: builder.mutation<{ authorization_url: string }, void>({
+      query: () => ({
+        url: "/users/omniport/login/",
+        method: "GET",
+      }),
+    }),
+
     register:builder.mutation<{detail:string},RegisterRequest>({
       query:(data) => ({
         url:"/users/register/",
@@ -57,4 +64,5 @@ export const{
   useVerifyOTPMutation,
   useGetMeQuery,
   useUpdateProfileMutation,
+  useOmniportLoginMutation,
 }=authApi;

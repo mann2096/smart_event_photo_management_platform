@@ -8,14 +8,7 @@ import { resolveImageUrl } from "../utils/resolveImageUrl";
 
 export default function PhotosByEventPage() {
   const filters = useAppSelector(selectStablePhotoFilters);
-  const {
-    data,
-    isLoading,
-    isError,
-  } = useGetPhotosQuery({
-    ...filters,
-    private_only: true,
-  });
+  const {data,isLoading,isError}=useGetPhotosQuery({...filters,private_only: true,});
 
   if (isLoading) {
     return (
@@ -48,7 +41,7 @@ export default function PhotosByEventPage() {
         Your events
       </h2>
 
-      {Object.entries(grouped).map(([eventId, eventPhotos]) => (
+      {Object.entries(grouped).map(([eventId,eventPhotos]) => (
         <section key={eventId} className="space-y-3">
           <Link
             to={`/events/${eventId}`}
@@ -56,9 +49,8 @@ export default function PhotosByEventPage() {
           >
             {eventPhotos[0].event.name}
           </Link>
-
           <div className="flex gap-3 overflow-x-auto">
-            {eventPhotos.slice(0, 6).map((photo) => (
+            {eventPhotos.slice(0,6).map((photo) => (
               <img
                 key={photo.id}
                 src={resolveImageUrl(photo.image)}

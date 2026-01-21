@@ -1,19 +1,12 @@
-import { setCredentials, logout } from "../features/auth/authSlice";
+import type { AppDispatch } from "../app/store";
+import { logout } from "../features/auth/authSlice";
 
-export function authBootstrap(dispatch:any) {
-  const accessToken=localStorage.getItem("accessToken");
-  const refreshToken=localStorage.getItem("refreshToken");
+export function authBootstrap(dispatch: AppDispatch) {
 
-  if (!accessToken || !refreshToken) {
-    dispatch(logout());
-    return;
-  }
-
-  dispatch(
-    setCredentials({
-      user: null,
-      accessToken,
-      refreshToken,
-    })
-  );
+  dispatch((_, getState) => {
+    const {accessToken,refreshToken} = getState().auth;
+    if (!accessToken || !refreshToken) {
+      dispatch(logout());
+    }
+  });
 }

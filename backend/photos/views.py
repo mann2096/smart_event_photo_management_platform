@@ -1,7 +1,6 @@
 from django.utils import timezone
 from datetime import timedelta
 import secrets
-from django.contrib.auth.mixins import LoginRequiredMixin
 import mimetypes
 from django.views import View
 from notifications.email import send_notification_email
@@ -93,39 +92,6 @@ class BulkPhotoDeleteAPI(APIView):
             {"deleted": deleted_count},
             status=200
         )
-
-
-class BulkPhotoRetagAPI(APIView):
-    permission_classes=[IsAuthenticated]
-    def post(self,request):
-        photo_ids=request.data.get("photo_ids")
-        user_ids=request.data.get("user_ids")
-        if not photo_ids or not user_ids:
-            return Response(
-                {"detail": "photo_ids and user_ids required"},
-                status=400
-            )
-        photos=Photo.objects.filter(id__in=photo_ids)
-        users=User.objects.filter(id__in=user_ids)
-        if not photos.exists():
-            return Response({"detail":"No photos found"},status=404)
-        with transaction.atomic():
-            for photo in photos:
-                if not request.user.is_superuser:
-                    if not UserEvent.objects.filter(
-                        user=request.user,
-                        event=photo.event,
-                        role__in=["photographer","coordinator"]
-                    ).exists():
-                        raise PermissionDenied("Not allowed to retag one or more photos")
-                TaggedBy.objects.filter(photo=photo).delete()
-                for user in users:
-                    TaggedBy.objects.create(
-                        photo=photo,
-                        tagged_user=user,
-                        tagged_by=request.user
-                    )
-        return Response({"status":"retagged"},status=200)
 
 class BulkPhotoUploadAPI(APIView):
     permission_classes=[IsAuthenticated]

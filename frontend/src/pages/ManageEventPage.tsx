@@ -9,10 +9,14 @@ import { useAppSelector } from "../app/hooks";
 import { useEffect, useState } from "react";
 import type { Event } from "../types/event";
 import { useCreateEventInviteMutation } from "../services/eventsApi";
+import { useAddEventMemberByEmailMutation } from "../services/eventsApi";
 
 const ROLES = ["member", "photographer", "coordinator"] as const;
 
 export default function ManageEventPage() {
+  const [email, setEmail] = useState("");
+  const [addMember, { isLoading: adding }] =
+    useAddEventMemberByEmailMutation();
   const [createInvite, { isLoading: inviteLoading }] =
     useCreateEventInviteMutation();
 
@@ -258,6 +262,42 @@ export default function ManageEventPage() {
           </div>
         ))}
       </div>
+      {canEditEvent && (
+        <div className="rounded-xl border bg-white p-6 space-y-3">
+          <h3 className="text-lg font-medium">
+            Add member by email
+          </h3>
+
+          <div className="flex gap-3">
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="user@example.com"
+              className="flex-1 rounded-lg border px-3 py-2 text-sm"
+            />
+
+            <button
+              disabled={!email || adding}
+              onClick={async () => {
+                try {
+                  await addMember({ eventId, email }).unwrap();
+                  setEmail("");
+                  alert("Member added");
+                } catch (err: any) {
+                  alert(err?.data || "Failed to add member");
+                }
+              }}
+              className="px-4 py-2 rounded-lg bg-blue-600
+                        text-white text-sm hover:bg-blue-700
+                        disabled:opacity-50"
+            >
+              Add
+            </button>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

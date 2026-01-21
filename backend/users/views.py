@@ -13,35 +13,71 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.exceptions import ValidationError
 from django.shortcuts import redirect
 from urllib.parse import urlencode
+import secrets
+import requests
+
+class OmniportLoginStartView(APIView):
+    permission_classes = []
+    def get(self,request):
+        base = settings.OMNIPORT_BASE_URL
+        client_id = settings.OMNIPORT_CLIENT_ID
+        redirect_uri = settings.OMNIPORT_REDIRECT_URI
+        if not (base and client_id and redirect_uri):
+            return Response(
+                {"detail": "Omniport OAuth is not configured."},
+                status=400,
+            )
+        state = secrets.token_urlsafe(16)
+        request.session["omniport_oauth_state"] = state
+        authorize_url = f"{base}/oauth/authorise/"
+        params = {
+            "client_id": client_id,
+            "redirect_uri": redirect_uri,
+            "response_type": "code", 
+            "state": state,
+        }
+        return Response({
+            "authorization_url": f"{authorize_url}?{urlencode(params)}"
+        })
 
 class OmniportCallbackView(APIView):
-    authentication_classes=[]
-    permission_classes=[]
-
+    permission_classes = []
     def get(self,request):
         code = request.query_params.get("code")
-        if not code:
-            raise ValidationError("Missing OAuth code")
-        data = get_omniport_user(code)
+        state = request.query_params.get("state")
+        expected_state = request.session.get("omniport_oauth_state")
+        if not code or (expected_state and state != expected_state):
+            raise ValidationError("Invalid Omniport callback")
+        try:
+            token_resp = requests.post(
+                f"{settings.OMNIPORT_BASE_URL}/open_auth/token/",
+                data={
+                    "client_id": settings.OMNIPORT_CLIENT_ID,
+                    "client_secret": settings.OMNIPORT_CLIENT_SECRET,
+                    "grant_type": "authorization_code",
+                    "redirect_uri": settings.OMNIPORT_REDIRECT_URI,
+                    "code": code,
+                },
+                timeout=10,
+            )
+            token_resp.raise_for_status()
+            access_token = token_resp.json().get("access_token")
+        except Exception:
+            raise ValidationError("Failed to obtain Omniport access token")
+        if not access_token:
+            raise ValidationError("Omniport did not return access token")
+        data = get_omniport_user(access_token)
         omniport_id = str(data.get("userId") or data.get("id"))
-
         email = (
             data.get("contactInformation", {})
                 .get("instituteWebmailAddress")
         )
-
         if not email:
             raise ValidationError("Omniport did not return institute email")
-
         user_name = (
             data.get("person", {})
                 .get("shortName")
             or email.split("@")[0]
-        )
-
-        profile_photo = (
-            data.get("person", {})
-                .get("displayPicture")
         )
 
         department = (
@@ -50,7 +86,7 @@ class OmniportCallbackView(APIView):
                 .get("department", {})
                 .get("name")
         )
-        user, created = User.objects.get_or_create(
+        user,created = User.objects.get_or_create(
             email=email,
             defaults={
                 "user_name": user_name,
@@ -62,35 +98,34 @@ class OmniportCallbackView(APIView):
         )
 
         if not created:
-            updated_fields = []
-
+            updated = False
             if user.provider != "omniport":
                 user.provider = "omniport"
-                updated_fields.append("provider")
+                updated = True
 
             if user.provider_user_id != omniport_id:
                 user.provider_user_id = omniport_id
-                updated_fields.append("provider_user_id")
+                updated = True
 
             if department and user.department != department:
                 user.department = department
-                updated_fields.append("department")
+                updated = True
 
             if not user.is_active:
                 user.is_active = True
-                updated_fields.append("is_active")
+                updated = True
 
-            if updated_fields:
-                user.save(update_fields=updated_fields)
+            if updated:
+                user.save()
         refresh = RefreshToken.for_user(user)
         params = urlencode({
-            "access": str(refresh.access_token),
-            "refresh": str(refresh),
+            "access":str(refresh.access_token),
+            "refresh":str(refresh),
             "new_user": str(created).lower(),
         })
         redirect_url = (
-            f"{settings.FRONTEND_BASE_URL}"
-            f"/auth/omniport/callback/?{params}"
+            f"{settings.FRONTEND_LOGIN_REDIRECT_URL}"
+            f"?{params}"
         )
         return redirect(redirect_url)
 

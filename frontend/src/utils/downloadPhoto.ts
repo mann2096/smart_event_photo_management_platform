@@ -1,14 +1,17 @@
-export async function downloadWatermarkedPhoto(photoId: string) {
-  const token = localStorage.getItem("accessToken");
-  if (!token) throw new Error("Not authenticated");
+import { store } from "../app/store";
 
+export async function downloadWatermarkedPhoto(photoId: string) {
+  const { accessToken } = store.getState().auth;
+  if (!accessToken) {
+    throw new Error("Not authenticated");
+  }
   const response = await fetch(
-    `${import.meta.env.VITE_API_BASE_URL}/api/photos/${photoId}/download/`,
+    `${import.meta.env.VITE_API_BASE_URL}/api/photos/items/${photoId}/download/`,
     {
       method: "GET",
       headers: {
-        Authorization: `Bearer ${token}`,
-        "ngrok-skip-browser-warning": "true", 
+        Authorization: `Bearer ${accessToken}`,
+        "ngrok-skip-browser-warning": "true",
       },
     }
   );
@@ -25,7 +28,7 @@ export async function downloadWatermarkedPhoto(photoId: string) {
 
   const a = document.createElement("a");
   a.href = url;
-  a.download = ""; 
+  a.download = "";
   document.body.appendChild(a);
   a.click();
   a.remove();

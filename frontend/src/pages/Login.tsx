@@ -1,14 +1,8 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { useLoginMutation } from "../features/auth/authApi";
+import { useLoginMutation, useOmniportLoginMutation } from "../features/auth/authApi";
 import { useAppDispatch } from "../app/hooks";
 import { completeAuth } from "../features/auth/authHelpers";
-
-const OMNIPORT_LOGIN_URL =
-  "https://channeli.in/oauth/authorize/?" +
-  `client_id=${import.meta.env.VITE_OMNIPORT_CLIENT_ID}` +
-  "&redirect_uri=http://boltless-carolann-subfoliate.ngrok-free.dev/api/users/auth/omniport/callback/" +
-  "&response_type=code";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -27,6 +21,16 @@ export default function Login() {
       navigate("/photos");
     } catch (err) {
       console.error("Login failed", err);
+    }
+  };
+
+  const [startOmniportLogin] = useOmniportLoginMutation();
+  const handleOmniportLogin = async () => {
+    try{
+      const res = await startOmniportLogin().unwrap();
+      window.location.href = res.authorization_url;
+    } catch (err) {
+      console.error("Omniport login failed", err);
     }
   };
 
@@ -86,7 +90,7 @@ export default function Login() {
           <div className="flex-1 h-px bg-gray-200" />
         </div>
         <button
-          onClick={() => (window.location.href = OMNIPORT_LOGIN_URL)}
+          onClick={handleOmniportLogin}
           className="w-full rounded-lg border border-gray-300 py-2.5 text-sm font-medium
                      text-gray-700 hover:bg-gray-50 transition"
         >
