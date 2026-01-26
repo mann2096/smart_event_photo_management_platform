@@ -5,7 +5,7 @@ from django.db.models.signals import post_delete
 from .models import Photo, PhotoVersion
 import os
 
-@receiver(post_save, sender="photos.Photo")
+@receiver(post_save,sender="photos.Photo")
 def run_photo_processing_tasks(sender, instance, created, **kwargs):
     if not created:
         return
@@ -22,16 +22,7 @@ def run_photo_processing_tasks(sender, instance, created, **kwargs):
         auto_tag_photo.si(instance.id),
     ).delay()
 
-@receiver(post_delete, sender=PhotoVersion)
-def delete_photoversion_file(sender, instance, **kwargs):
-    if instance.image and instance.image.path:
-        try:
-            if os.path.exists(instance.image.path):
-                os.remove(instance.image.path)
-        except Exception:
-            pass
-
-@receiver(post_delete, sender=Photo)
+@receiver(post_delete,sender=Photo)
 def delete_original_photo_file(sender, instance, **kwargs):
     if instance.image and instance.image.path:
         try:

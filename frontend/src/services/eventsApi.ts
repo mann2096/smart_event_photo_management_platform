@@ -42,7 +42,6 @@ export const eventsApi=api.injectEndpoints({
     getEventById: builder.query<Event, string>({
       query: (eventId) => `/events/${eventId}/`,
     }),
-
     updateEvent: builder.mutation<Event,{eventId:string;data:Partial<Event>}>({
       query: ({ eventId, data }) => ({
         url: `/events/${eventId}/`,

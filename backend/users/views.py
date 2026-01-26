@@ -96,7 +96,6 @@ class OmniportCallbackView(APIView):
                 "is_active": True,
             },
         )
-
         if not created:
             updated = False
             if user.provider != "omniport":

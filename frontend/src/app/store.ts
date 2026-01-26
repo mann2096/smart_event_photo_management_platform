@@ -3,16 +3,7 @@ import { api } from "../services/api";
 import authReducer from "../features/auth/authSlice";
 import photoFiltersReducer from "../features/photos/photoFiltersSlice";
 
-import {
-  persistReducer,
-  persistStore,
-  FLUSH,
-  REHYDRATE,
-  PAUSE,
-  PERSIST,
-  PURGE,
-  REGISTER,
-} from "redux-persist";
+import {persistReducer,persistStore,FLUSH,REHYDRATE,PAUSE,PERSIST,PURGE,REGISTER,} from "redux-persist";
 import storage from "redux-persist/lib/storage";
 
 const authPersistConfig = {

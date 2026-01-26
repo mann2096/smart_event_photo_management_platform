@@ -29,7 +29,6 @@ class LoginSerializer(serializers.Serializer):
 
 class UserSerializer(serializers.ModelSerializer):
     profile_photo = serializers.SerializerMethodField()
-
     class Meta:
         model = User
         fields = [

@@ -34,10 +34,9 @@ from rest_framework.decorators import action
 
 class BulkPhotoDeleteAPI(APIView):
     permission_classes = [IsAuthenticated]
-    def post(self, request):
+    def post(self,request):
         user = request.user
         photo_ids = request.data.get("photo_ids", [])
-
         if not photo_ids:
             return Response(
                 {"detail": "No photos selected"},
@@ -57,7 +56,6 @@ class BulkPhotoDeleteAPI(APIView):
         for photo in photos:
             if user.is_superuser:
                 continue
-
             try:
                 user_event = UserEvent.objects.get(
                     user=user,
@@ -66,16 +64,13 @@ class BulkPhotoDeleteAPI(APIView):
             except UserEvent.DoesNotExist:
                 unauthorized_photos.append(photo.id)
                 continue
-
             if user_event.role == "coordinator":
                 continue
-
             if (
                 user_event.role == "photographer"
                 and photo.uploaded_by_id == user.id
             ):
                 continue
-
             unauthorized_photos.append(photo.id)
         if unauthorized_photos:
             return Response(
@@ -87,9 +82,8 @@ class BulkPhotoDeleteAPI(APIView):
             )
         deleted_count = photos.count()
         photos.delete()
-
         return Response(
-            {"deleted": deleted_count},
+            {"deleted":deleted_count},
             status=200
         )
 
@@ -540,13 +534,11 @@ class PhotoViewSet(ModelViewSet):
     @action(detail=True, methods=["get"], url_path="download")
     def download_watermarked(self, request, pk=None):
         photo = self.get_object()
-
         if not (
             request.user.is_superuser
             or user_has_event_access(request.user, photo.event)
         ):
             raise PermissionDenied("Access denied")
-
         try:
             version = PhotoVersion.objects.get(
                 photo=photo,

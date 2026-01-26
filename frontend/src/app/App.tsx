@@ -22,11 +22,9 @@ import JoinEvent from "../pages/JoinEvent";
 
 export default function App() {
   useNotificationsSocket();
-
   return (
     <BrowserRouter>
       <RouterBootstrap />
-
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
@@ -52,7 +50,6 @@ export default function App() {
           <Route path="/events/:eventId/manage" element={<ManageEventPage />} />
           <Route path="/join-event/:inviteId" element={<JoinEvent />} />
         </Route>
-
         <Route path="*" element={<Login />} />
       </Routes>
     </BrowserRouter>

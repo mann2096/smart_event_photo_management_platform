@@ -5,7 +5,6 @@ import type { Notification } from "../types/notification";
 
 export function useNotificationsSocket() {
   const dispatch = useAppDispatch();
-
   const accessToken = useAppSelector(
     (state) => state.auth.accessToken
   );
@@ -36,7 +35,6 @@ export function useNotificationsSocket() {
       return;
     }
     if (connectedRef.current) return;
-
     const API_BASE =
       import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
 
@@ -49,11 +47,9 @@ export function useNotificationsSocket() {
 
     socketRef.current = socket;
     connectedRef.current = true;
-
     socket.onmessage = (event) => {
       try {
         const notification: Notification = JSON.parse(event.data);
-
         dispatch(
           notificationsApi.util.updateQueryData(
             "getNotifications",
@@ -72,7 +68,6 @@ export function useNotificationsSocket() {
         console.error("WebSocket parse error", err);
       }
     };
-
     socket.onclose = () => {
       socketRef.current = null;
       connectedRef.current = false;

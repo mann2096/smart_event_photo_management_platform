@@ -30,9 +30,11 @@ class EventViewSet(ModelViewSet):
         ).distinct()
 
     def get_permissions(self):
+        if self.action == "public_events":
+            return [AllowAny()]
         if self.action in ["update", "partial_update", "destroy"]:
             return [IsAuthenticated(), CanUpdateEvent()]
-        return super().get_permissions()
+        return [IsAuthenticated()]
 
     def perform_create(self,serializer):
         event=serializer.save(created_by=self.request.user)
@@ -41,7 +43,7 @@ class EventViewSet(ModelViewSet):
             event=event,
             role="coordinator",
         )
-    @action(detail=False,methods=["get"],permission_classes=[AllowAny],url_path="public",)
+    @action(detail=False,methods=["get"],url_path="public",)
     def public_events(self, request):
         events = Event.objects.filter(visibility="public")
         serializer = self.get_serializer(events, many=True)
